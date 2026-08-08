@@ -6,6 +6,7 @@ import CallList from "./components/CallList";
 import CallDetail from "./components/CallDetail";
 import AgentPerformancePage from "./components/AgentPerformancePage";
 import OrganizationPage from "./components/OrganizationPage";
+import LeadPipelinePage from "./components/LeadPipelinePage";
 
 function App() {
   const [tab, setTab] = useState("calls");
@@ -63,6 +64,9 @@ function App() {
           <button className={tab === "organization" ? "active" : ""} onClick={() => setTab("organization")}>
             Organization
           </button>
+          <button className={tab === "leads" ? "active" : ""} onClick={() => setTab("leads")}>
+            Leads
+          </button>
         </nav>
       </header>
 
@@ -85,8 +89,10 @@ function App() {
         </div>
       ) : tab === "agents" ? (
         <AgentPerformancePage initialAgentId={presetAgentId} />
-      ) : (
+      ) : tab === "organization" ? (
         <OrganizationPage onDrillToAgent={goToAgent} />
+      ) : (
+        <LeadPipelinePage />
       )}
     </div>
   );

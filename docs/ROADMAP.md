@@ -123,9 +123,9 @@ just checking the API responses.
 
 ## Phase C — CRM-grade lead & conversion metrics
 
-**Status: C1 done (2026-08-08), reconciled directly into the rollup rather
-than left as a parallel number (that covers what C7 asked for too — see
-below). C2–C6 still open.**
+**Status: C1 and C5 done (2026-08-08). C1 was reconciled directly into the
+rollup rather than left as a parallel number (that covers what C7 asked for
+too — see below). C2–C4 and C6 still open.**
 
 This is where "conversion suitable for CRM" actually gets built — the
 old agent-performance conversion numbers were a call-level proxy
@@ -137,9 +137,23 @@ old agent-performance conversion numbers were a call-level proxy
 | C2 | **Call-level conversion context**: calls-per-lead distribution, avg calls-to-close, avg days-to-close | "How many touches does it take" — a real sales-ops question this repo can't currently answer at all. | M | Open |
 | C3 | Lost-reason taxonomy on `Lead` (not free text) + lost-reason breakdown in reports | Doc section 17 ("reasons customers reject the product") — currently nothing captures *why* a lead was lost. | S |
 | C4 | Lead source/channel field + conversion-by-source breakdown | Needed to answer "which lead source converts" — table stakes for a CRM-adjacent tool. | S |
-| C5 | Lead pipeline view (Kanban: untagged → qualified → demo → proposal → won/lost) | Replaces the current single-call dropdown outcome form with something that reads like a CRM, not a survey field. | L |
+| C5 | Lead pipeline view (Kanban: untagged → qualified → demo → proposal → won/lost) | Replaces the current single-call dropdown outcome form with something that reads like a CRM, not a survey field. | L | **Done** — required no backend changes at all: `GET /api/leads` (with `assigned_agent_id`/`stage`/`q` filters) and `POST /api/leads/{id}/stage` already covered everything the board needs, since the backend places no restriction on which stage a lead can move to from which. New `LeadPipelinePage`/`LeadCard` components: drag-and-drop between columns as the primary interaction, plus prev/next arrow buttons on every card as a keyboard/touch-accessible fallback that writes through the same code path, not a separate one. Dropping (or arrow-moving) a lead into Won without an existing deal size opens a small inline modal to capture it (skippable) rather than silently leaving revenue unset. |
 | C6 | Lead detail page: full call history + stage-change audit trail + reassignment history | The "one lead, many calls" view — currently there is no way to see a lead's whole story in one place. | M |
 | C7 | Reconcile agent/team/org rollups to consume lead-level conversion (Phase C1), not the call-level outcome tag they use today | Keeps the numbers internally consistent bottom-to-top instead of two different "conversion rate" definitions coexisting. | M | **Done as part of C1** — `agent_performance.py`'s `ConversionAgg` and `ClosingAgg` were rewritten together, not layered; `ClosingAgg` deliberately stayed a current-stage *snapshot* (distinct from `ConversionAgg`'s period-scoped transition count) rather than being collapsed into one number, since they answer different questions — see both classes' docstrings in `schemas.py`. |
+
+**C5 verification.** No new backend tests needed — `GET /api/leads` and
+`POST /api/leads/{id}/stage` were already covered by `test_leads_router.py`
+from Phase A, and this feature added no new endpoints. Live-verified
+instead: real leads created through the actual API across two agents on
+different teams, spread across four stages including one already Won, then
+driven through the actual running frontend with Playwright — dragged a
+card from Untagged into Qualified, used the arrow-button fallback to move
+a card from Qualified to Demo booked, dragged a card into Won (confirmed
+the deal-size modal appears, filled it, confirmed the column's running
+total updated correctly to the sum of both Won deals), and confirmed the
+agent filter and name/phone search both narrow the board correctly — zero
+console errors throughout. Seeded leads cleaned out of `server/data/`
+afterward, same discipline as every other live pass in this document.
 
 ---
 
@@ -218,8 +232,12 @@ teammate-only benchmarks for two agents on different teams.
 **Second slice shipped (2026-08-08):** Phase B (Team & Org rollups) — the
 direct extension of `agent_performance.py` deferred so the Phase A
 foundation could land first. See the Phase B section above for the full
-verification writeup. **Next up: C2–C6** (call-level conversion context,
-lost-reason taxonomy, lead source/channel, the Kanban pipeline view, and
-the lead detail page) — the rest of Phase C that wasn't needed to unblock
-Phase B, now that CALL → AGENT → TEAM → ORGANIZATION is fully real and
-navigable end to end.
+verification writeup.
+
+**Third slice shipped (2026-08-08):** C5 (Kanban lead pipeline), taken out
+of its originally-suggested order (after C2–C4/C6) at explicit request,
+since it's the most visibly CRM-like piece and needed zero backend changes
+to build. See the Phase C section above for the full verification writeup.
+**Next up: C2, C3, C4, C6** (call-level conversion context, lost-reason
+taxonomy, lead source/channel, and the lead detail page) — the remaining
+Phase C line items, none of which block each other or C5.

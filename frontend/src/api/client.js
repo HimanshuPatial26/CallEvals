@@ -57,6 +57,15 @@ export function getLead(leadId) {
   return request(`/api/leads/${leadId}`);
 }
 
+export function listLeads({ assignedAgentId, stage, q } = {}) {
+  const params = new URLSearchParams();
+  if (assignedAgentId) params.set("assigned_agent_id", assignedAgentId);
+  if (stage) params.set("stage", stage);
+  if (q) params.set("q", q);
+  const qs = params.toString();
+  return request(`/api/leads${qs ? `?${qs}` : ""}`);
+}
+
 export function setLeadStage(leadId, stage, dealSizeAed) {
   return request(`/api/leads/${leadId}/stage`, {
     method: "POST",

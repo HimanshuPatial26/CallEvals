@@ -5,7 +5,8 @@ summary + next steps + objection tags out, plus a scored rubric, sentiment,
 buying intent, coaching notes, and rule-based compliance checks per call (see
 "Analytics expansion" below) — rolled up per agent, per team, and org-wide,
 per period, each level with its own benchmark against its peers (see
-"Agent Performance" and "Team & Organization rollups" below).
+"Agent Performance" and "Team & Organization rollups" below), with leads
+tracked through a Kanban pipeline board (see "Lead pipeline" below).
 Full product spec: [docs/PRD.md](docs/PRD.md).
 
 This repo is the Phase 0 build the PRD calls for (section 9) — prove that
@@ -529,6 +530,49 @@ unconfirmed. If you add a real key: run a call through with
 against what Gemini produces for the same audio before trusting it for real
 review work.
 
+## Lead pipeline (2026-08-08) — Kanban board, ROADMAP.md C5
+
+**Why this before C2–C4/C6:** taken out of order at explicit request — it's
+the most visibly CRM-like piece of Phase C, and turned out to need zero
+backend changes to build. `GET /api/leads` (already supports
+`assigned_agent_id`/`stage`/`q` filters) and `POST /api/leads/{id}/stage`
+already covered everything a board needs; `lead_storage.set_stage` has
+never restricted which stage a lead can move to from which, so every
+column-to-column move is already a valid write.
+
+**What it replaces.** Until now, changing a lead's stage meant opening one
+of its calls and using the `<select>` dropdown in `LeadPanel` (still there,
+unchanged, for in-context editing while reviewing a specific call). The new
+`Leads` tab adds an org-wide view: six columns (Untagged → Qualified → Demo
+booked → Proposal sent → Won / Lost), an agent filter, and a name/phone
+search — reusing the same filters `GET /api/leads` already had.
+
+**Two ways to move a card, one code path.** Cards are natively draggable
+(`draggable`/`onDragStart`/`onDrop` — no drag-and-drop library added) for
+the primary Kanban interaction, and every card also has `‹`/`›` buttons
+that step to the adjacent stage in `FunnelStage` order. Both call the exact
+same `moveLead` function and the exact same `POST /api/leads/{id}/stage`
+request — the buttons are a keyboard/touch-accessible fallback, not a
+second, divergent implementation. Dropping (or arrow-moving) a lead into
+Won without an existing `deal_size_aed` opens a small modal to capture it,
+skippable rather than mandatory — matches `LeadPanel`'s existing behavior
+of treating deal size as optional even for a won lead. The Won column
+header shows a running total of every visible deal there, computed
+client-side from whatever leads are currently loaded (respects the active
+agent filter/search — it's a sum of what's on screen, not a separate
+server-computed number).
+
+**Verification.** No new backend tests — no backend code changed; C5 is a
+pure consumer of endpoints Phase A's `test_leads_router.py` already covers.
+Live-verified instead: real leads created via the actual API across two
+agents on different teams and four different stages (including one already
+Won), then driven through the real running frontend with Playwright —
+dragged a card between columns, used the arrow-button fallback, dragged a
+card into Won and confirmed the deal-size modal appears and the column
+total updates correctly to the sum of both Won deals, and confirmed the
+agent filter and search both narrow the board — zero console errors.
+Seeded leads removed from `server/data/` afterward.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes
@@ -586,7 +630,8 @@ frontend/
                       AgentFunnelPanel, AgentSentimentIntentPanel,
                       AgentQualityTrendPanel, AgentCoachingPanel,
                       OrganizationPage (team+org rollups, drill-down),
-                      LeaderboardPanel
+                      LeaderboardPanel,
+                      LeadPipelinePage (Kanban board), LeadCard
     api/client.js
 docs/
   PRD.md

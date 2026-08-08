@@ -1,14 +1,14 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, UploadFile
 
 from app import storage
 from app.asr.factory import get_asr_provider
 from app.audio.channel_split import is_dual_channel
 from app.extraction.gemini_extractor import GeminiExtractor
 from app.pipeline import process_call
-from app.schemas import CallRecord, ReviewFeedback
+from app.schemas import CallOutcome, CallRecord, ReviewFeedback
 
 router = APIRouter(prefix="/api/calls", tags=["calls"])
 
@@ -32,9 +32,13 @@ def _run_pipeline(call_id: str) -> None:
 
 
 @router.post("", status_code=202)
-async def upload_call(file: UploadFile, background_tasks: BackgroundTasks) -> CallRecord:
+async def upload_call(
+    file: UploadFile, background_tasks: BackgroundTasks, agent_name: str = Form(...)
+) -> CallRecord:
     if not file.filename:
         raise HTTPException(status_code=400, detail="File must have a filename")
+    if not agent_name.strip():
+        raise HTTPException(status_code=400, detail="agent_name is required — every call must be attributed to a rep")
 
     call_id = str(uuid.uuid4())
     audio_path = storage.audio_path_for(call_id, file.filename)
@@ -51,6 +55,7 @@ async def upload_call(file: UploadFile, background_tasks: BackgroundTasks) -> Ca
         filename=file.filename,
         dual_channel=dual_channel,
         created_at=datetime.now(timezone.utc),
+        agent_name=agent_name.strip(),
         status="processing",
     )
     storage.save(record)
@@ -80,5 +85,19 @@ async def submit_feedback(call_id: str, feedback: ReviewFeedback) -> CallRecord:
         raise HTTPException(status_code=404, detail="Call not found")
     record.feedback = [f for f in record.feedback if not (f.item_type == feedback.item_type and f.item_index == feedback.item_index)]
     record.feedback.append(feedback)
+    storage.save(record)
+    return record
+
+
+@router.post("/{call_id}/outcome")
+async def set_outcome(call_id: str, outcome: CallOutcome) -> CallRecord:
+    """Manager-tagged funnel stage + deal size — the only data source behind
+    every CRM-shaped agent-performance metric (conversion, qualified-lead
+    rate, revenue). There's no CRM integration (PRD section 8 defers that to
+    Phase 2), so this is a manually recorded fact, not an inference."""
+    record = storage.load(call_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Call not found")
+    record.outcome = outcome
     storage.save(record)
     return record

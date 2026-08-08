@@ -2,8 +2,10 @@
 
 Sales call intelligence for GCC mid-market real estate brokerages: transcript in,
 summary + next steps + objection tags out, plus a scored rubric, sentiment,
-buying intent, coaching notes, and rule-based compliance checks (see
-"Analytics expansion" below). Full product spec: [docs/PRD.md](docs/PRD.md).
+buying intent, coaching notes, and rule-based compliance checks per call (see
+"Analytics expansion" below) — and, per agent per period, a cross-call
+performance rollup with team benchmarking (see "Agent Performance" below).
+Full product spec: [docs/PRD.md](docs/PRD.md).
 
 This repo is the Phase 0 build the PRD calls for (section 9) — prove that
 extraction (F2–F4) is accurate enough to trust, against scripted mock calls,
@@ -170,6 +172,93 @@ deterministic and needs no API key. Re-run
 a paid-tier key) before treating the wider objection taxonomy as being at
 the same precision bar as the original three categories.
 
+## Agent Performance (2026-08-08) — cross-call rollups per rep, per period
+
+A second requirements doc asked for an "Agent Performance" page: not another
+per-call output, but "given all the calls this agent handled in a period,
+how well are they performing, and is it improving?" That's a different
+shape of feature — it needed two foundational pieces that didn't exist
+before this pass, and it deliberately does *not* build everything the doc
+asked for.
+
+**Foundation:**
+
+- **`CallRecord.agent_name`** — every call is now attributed to a rep at
+  upload time (a required form field; existing/unlabeled records default to
+  `"Unassigned"` rather than breaking). Nothing about "agent-level" analytics
+  is possible without this, and it didn't exist until now — the app was
+  purely per-call.
+- **`CallRecord.outcome`** (`app/schemas.py`'s `CallOutcome`) — a manager-set
+  funnel stage (untagged/qualified/demo booked/proposal sent/won/lost) plus
+  deal size, set via `POST /api/calls/{id}/outcome` and a new Outcome control
+  on the call review page. This is the *only* data source behind every
+  CRM-shaped metric the doc asked for (conversion rate, qualified-lead rate,
+  revenue, the quality-vs-outcome matrix) — there's no CRM/dialer
+  integration (PRD section 8 defers that to Phase 2), so those numbers are
+  either this manually-recorded fact or nothing. No fabricated CRM data
+  anywhere in this build.
+
+**`app/agent_performance.py`** computes the full rollup — pure aggregation
+over `CallRecord`s already in storage, no LLM call, same zero-marginal-cost
+shape as `insights.py` and `compliance.py`: overview KPIs, an 8-dimension
+agent score, talk-time/discovery/objection aggregates, closing-funnel and
+conversion analytics, sentiment movement, buying-intent-to-conversion,
+quality distribution, a consistency score (100 − stdev of per-call scores —
+"how reliably good," not just "how good"), a weekly trend, strengths/
+weaknesses backed by real sampled evidence (not generated text), rule-based
+coaching recommendations, team benchmarking against other agents' calls in
+the same period, and the quality-vs-outcome 2×2 matrix. Exposed via
+`GET /api/agents` and `GET /api/agents/{name}/performance?start=&end=`, and
+a new "Agent Performance" tab in the frontend with an agent + date-range
+picker.
+
+**Two things this doc asked for are explicitly not built, not silently
+skipped** — every report carries a `notes` field naming them:
+
+1. **Dialer-level call volume** (calls assigned/attempted/connected/missed).
+   This app only ever sees a call once someone uploads a recording — there's
+   no data source for "attempted but never connected." Only
+   `calls_analyzed` (successfully processed uploads) is shown.
+2. **Itemized discovery fields** (need/budget/timeline/decision-maker
+   identified individually, as separate percentages). The per-call
+   extraction only produces one aggregate discovery score + evidence string;
+   adding seven new boolean fields there is a schema change out of scope
+   for this pass. Only the aggregate score is rolled up.
+
+**Rubric reconciliation.** This doc's Agent Score (Discovery 20% / Objection
+15% / Pitch 15% / Closing 15% / Communication 10% / **Sentiment 10%** /
+Compliance 10% / **Call Discipline 5%**) doesn't match the `ScoreBreakdown`
+rubric already built and tested (Opening&Rapport 10 / Discovery 20 / Active
+Listening 10 / Pitch 15 / Objection 15 / Communication 10 / Closing 15 /
+Compliance 5 — no scored Sentiment, no Call Discipline). Rather than touch
+the already-verified per-call extraction prompt again, the remap happens
+only at the aggregation layer: Opening/Rapport + Active Listening +
+Communication/Professionalism are averaged into one "Communication"
+dimension, the per-call sentiment label is converted to a 0–100 score
+(positive=100/neutral=60/negative=20), and Call Discipline — which has no
+defined scoring method in either source doc — is excluded, with the
+remaining 7 weights renormalized from 95 back up to 100 rather than
+silently capping the total below it.
+
+**Verification status.** The aggregation math is unit-tested directly
+(`tests/test_agent_performance.py`, 14 tests covering the weight
+renormalization, consistency scoring, funnel-leakage detection, conversion
+math, and team-benchmark isolation) with no API key needed — it's pure
+computation, same as the compliance tests. The full dashboard was then
+browser-tested live end to end (Playwright, not just `npm run build`):
+backend and frontend dev servers started for real, 18 synthetic-but-
+realistic `CallRecord`s seeded directly into storage for two different
+agents (bypassing the ASR/Gemini pipeline, which the exhausted free-tier
+quota can't currently drive at this volume), and every panel — score
+breakdown, talk time, objections, funnel, conversion, sentiment, buying
+intent, quality distribution, weekly trend, strengths/weaknesses with real
+sampled evidence text, coaching recommendations, team benchmark — confirmed
+rendering correctly with zero console errors, including switching between
+agents and seeing genuinely different numbers. The one thing not yet
+exercised against a *real* multi-call dataset is the full pipeline end to
+end at this volume (12+ calls through actual ASR + Gemini extraction) —
+that's a quota/budget question, not a correctness one.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes
@@ -197,9 +286,10 @@ server/
     routers/         FastAPI routes
     insights.py      rule-based behavior readouts (talk time, monologues, questions, interruptions)
     compliance.py    rule-based script-adherence checks (analytics doc section 14)
+    agent_performance.py  cross-call rollups per agent/period — pure aggregation, no LLM call
     pipeline.py      orchestrates ASR -> extraction -> insights/compliance/overall_score
     storage.py       filesystem persistence
-    schemas.py       F1-F4 + score/sentiment/intent/coaching/compliance data model
+    schemas.py       F1-F4 + score/sentiment/intent/coaching/compliance + agent-performance data model
   eval/
     mock_calls/      6 scripted calls + hand-labeled ground truth (PRD section 9)
     run_precision_eval.py
@@ -209,7 +299,11 @@ frontend/
     components/      UploadPanel, CallList, CallDetail, TranscriptView,
                       NextStepsPanel, ObjectionTags, CallInsightsPanel,
                       ScoreBreakdownPanel, SentimentPanel, BuyingIntentPanel,
-                      CoachingPanel, ComplianceChecklist
+                      CoachingPanel, ComplianceChecklist, OutcomePanel,
+                      AgentPerformancePage + AgentOverviewPanel,
+                      AgentScoreBreakdownPanel, AgentBehaviorPanel,
+                      AgentFunnelPanel, AgentSentimentIntentPanel,
+                      AgentQualityTrendPanel, AgentCoachingPanel
     api/client.js
 docs/
   PRD.md
@@ -351,5 +445,17 @@ through the actual app (not raw curl):
   `python -m eval.run_precision_eval` once the quota resets to get real
   numbers on the wider objection taxonomy before trusting it at the
   original 3-category precision bar.
-- No auth, no multi-tenant storage, no CRM integration — all explicitly Phase 1+
-  per the PRD roadmap (section 9).
+- **Agent Performance is unit-tested and browser-verified against seeded
+  data, not against a real multi-call pipeline run.** `app/agent_performance.py`'s
+  math is directly unit-tested (no API key needed), and the dashboard was
+  Playwright-driven against 18 realistic `CallRecord`s seeded straight into
+  storage — but running 12+ real calls per agent through actual ASR +
+  Gemini extraction to populate it end to end wasn't done, since the free
+  tier's daily quota (already exhausted this session) can't support that
+  volume. The aggregation logic itself doesn't care where the per-call data
+  came from, so this is a volume/budget gap, not a correctness one — worth
+  re-confirming against a real multi-call run before trusting the numbers
+  in front of an actual manager.
+- No auth, no multi-tenant storage, no CRM integration beyond the manual
+  per-call outcome tag described above — all explicitly Phase 1+ per the PRD
+  roadmap (section 9).

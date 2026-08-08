@@ -8,8 +8,9 @@ import SentimentPanel from "./SentimentPanel";
 import BuyingIntentPanel from "./BuyingIntentPanel";
 import CoachingPanel from "./CoachingPanel";
 import ComplianceChecklist from "./ComplianceChecklist";
+import OutcomePanel from "./OutcomePanel";
 
-export default function CallDetail({ call, onFeedbackChange }) {
+export default function CallDetail({ call, onFeedbackChange, onOutcomeChange }) {
   const [highlightTimestamp, setHighlightTimestamp] = useState(null);
 
   if (call.status === "processing") {
@@ -89,6 +90,11 @@ export default function CallDetail({ call, onFeedbackChange }) {
           <ComplianceChecklist compliance={call.compliance} />
         </section>
       </div>
+
+      <section className="panel">
+        <h3>Outcome</h3>
+        <OutcomePanel callId={call.id} outcome={call.outcome} onOutcomeChange={onOutcomeChange} />
+      </section>
     </div>
   );
 }

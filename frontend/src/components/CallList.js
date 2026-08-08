@@ -17,7 +17,10 @@ export default function CallList({ calls, selectedId, onSelect }) {
           className={`call-list-item ${call.id === selectedId ? "selected" : ""}`}
           onClick={() => onSelect(call.id)}
         >
-          <span className="call-filename">{call.filename}</span>
+          <span className="call-list-text">
+            <span className="call-filename">{call.filename}</span>
+            <span className="call-agent-name">{call.agent_name}</span>
+          </span>
           <span className={`status-badge status-${call.status}`}>{STATUS_LABEL[call.status] || call.status}</span>
         </li>
       ))}

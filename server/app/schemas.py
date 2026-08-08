@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -47,6 +47,22 @@ class ComplianceCheckResult(str, Enum):
     DETECTED = "detected"
     NOT_DETECTED = "not_detected"
     NOT_APPLICABLE = "not_applicable"
+
+
+class FunnelStage(str, Enum):
+    """Manually set by the manager reviewing the call — not extracted or
+    inferred. The app has no CRM/dialer integration (PRD section 8: CRM
+    moves to Phase 2 as a hard dependency), so conversion/funnel/revenue
+    analytics have no data source unless a human records the outcome. This
+    is that record, kept deliberately minimal rather than modeling a full
+    CRM pipeline."""
+
+    UNTAGGED = "untagged"
+    QUALIFIED = "qualified"
+    DEMO_BOOKED = "demo_booked"
+    PROPOSAL_SENT = "proposal_sent"
+    WON = "won"
+    LOST = "lost"
 
 
 class TranscriptSegment(BaseModel):
@@ -206,6 +222,16 @@ class CallInsights(BaseModel):
     )
 
 
+class CallOutcome(BaseModel):
+    """The manually-tagged funnel stage + deal size behind every CRM-shaped
+    agent-performance metric (conversion rate, qualified-lead rate, revenue,
+    the quality-vs-outcome matrix). Defaults to untagged/unknown — an
+    unreviewed call should never silently count as "lost" or "$0"."""
+
+    stage: FunnelStage = FunnelStage.UNTAGGED
+    deal_size_aed: float | None = Field(default=None, ge=0.0, description="Only meaningful once stage=won")
+
+
 class ReviewFeedback(BaseModel):
     """Manager confirm/reject on an extracted next step or objection.
 
@@ -223,6 +249,9 @@ class CallRecord(BaseModel):
     filename: str
     dual_channel: bool
     created_at: datetime
+    agent_name: str = Field(
+        default="Unassigned", description="Rep who handled this call, captured at upload time — required for any agent-level rollup"
+    )
     transcript: list[TranscriptSegment] = Field(default_factory=list)
     extraction: ExtractionResult | None = None
     insights: CallInsights | None = None
@@ -231,6 +260,199 @@ class CallRecord(BaseModel):
         default=None,
         description="Sum of the 7 LLM-scored rubric dimensions plus the compliance-derived score, out of 100 (doc section 18)",
     )
+    outcome: CallOutcome = Field(default_factory=CallOutcome)
     feedback: list[ReviewFeedback] = Field(default_factory=list)
     status: str = Field(default="processing", description="processing | done | failed")
     error: str | None = None
+
+
+# --- Agent performance aggregation (cross-call rollups, app/agent_performance.py) ---
+#
+# Everything below is computed by summing/averaging fields already produced
+# per-call above — no new LLM call, no new extraction. Two things the source
+# doc asked for are deliberately NOT modeled here (see AgentPerformanceReport.notes):
+# dialer-level call volume (assigned/attempted/connected/missed — this app only
+# ever sees a call once someone uploads a recording, so "attempted but not
+# connected" has no data source), and itemized discovery-field percentages
+# (need/budget/timeline/decision-maker identified individually — the per-call
+# extraction only produces one aggregate discovery score + evidence string,
+# and adding seven new boolean fields there is out of scope for this pass).
+
+
+class ScoreDimensionAgg(BaseModel):
+    label: str
+    agent_score: float = Field(description="0-100, rescaled from the dimension's own per-call max")
+    team_benchmark: float | None = Field(
+        default=None, description="0-100 average across other agents' calls in the same period; None without team data yet"
+    )
+    calls_scored: int
+
+
+class AgentScoreBreakdown(BaseModel):
+    """Doc section 2's 8-dimension rubric, remapped onto the ScoreBreakdown
+    already computed per call rather than re-extracting a different one (see
+    the PRD addendum for the reasoning). Call Discipline has no defined
+    scoring method in either source doc, so it's excluded and the remaining
+    7 weights are renormalized to still sum to 100 rather than silently
+    capping the total at 95."""
+
+    discovery_qualification: ScoreDimensionAgg
+    objection_handling: ScoreDimensionAgg
+    pitch_value_prop: ScoreDimensionAgg
+    closing_next_steps: ScoreDimensionAgg
+    communication: ScoreDimensionAgg = Field(
+        description="Remapped from the average of opening_rapport, active_listening, and communication_professionalism"
+    )
+    sentiment: ScoreDimensionAgg = Field(description="Sentiment label converted to a 0-100 score: positive=100, neutral=60, negative=20")
+    compliance: ScoreDimensionAgg
+    overall_score: float = Field(description="Weighted sum of the 7 dimensions above, renormalized to 100")
+    call_discipline_excluded_note: str = "Not scored — no defined measurement method in either source doc."
+
+
+class TalkTimeAgg(BaseModel):
+    avg_rep_talk_pct: float
+    avg_customer_talk_pct: float
+    avg_interruptions: float
+    avg_questions_per_call: float
+    avg_longest_monologue_seconds: float
+    team_avg_rep_talk_pct: float | None = None
+
+
+class ObjectionCategoryAgg(BaseModel):
+    category: ObjectionCategory
+    count: int
+    frequency_pct: float
+    addressed_rate_pct: float = Field(description="Share of this category's objections marked addressed:true — a handling-score proxy")
+
+
+class ObjectionAgg(BaseModel):
+    total_objections: int
+    by_category: list[ObjectionCategoryAgg]
+    overall_handling_effectiveness_pct: float | None
+    weakest_category: ObjectionCategory | None = None
+
+
+class ClosingAgg(BaseModel):
+    calls_with_next_step: int = Field(description="Heuristic proxy for 'closing attempt' — no separate manual signal for it")
+    calls_with_due_date: int
+    qualified_calls: int
+    demo_booked: int
+    proposals_sent: int
+    won: int
+    lost: int
+    qualified_without_next_step: int = Field(
+        description="Qualified calls that ended with no logged next step — the funnel-leakage signal doc section 11 calls out"
+    )
+
+
+class SentimentAgg(BaseModel):
+    avg_beginning_score: float
+    avg_end_score: float
+    sentiment_improvement: float = Field(description="avg_end_score - avg_beginning_score")
+    calls_improved: int
+    calls_deteriorated: int
+    positive_pct: float
+    negative_pct: float
+
+
+class IntentDistribution(BaseModel):
+    level: IntentLevel
+    count: int
+    pct: float
+    conversion_rate_pct: float | None = None
+
+
+class ConversionAgg(BaseModel):
+    """Entirely dependent on manually-tagged CallOutcome. None fields mean
+    'not enough tagged calls to compute this', never a silent zero."""
+
+    tagged_calls: int
+    qualified_rate_pct: float | None
+    conversion_rate_pct: float | None
+    lost_rate_pct: float | None
+    revenue_aed: float | None
+    avg_deal_size_aed: float | None
+    intent_breakdown: list[IntentDistribution]
+
+
+class QualityBucket(BaseModel):
+    range_label: str
+    count: int
+    pct: float
+
+
+class TrendPoint(BaseModel):
+    period_label: str
+    calls: int
+    avg_score: float | None
+    conversion_rate_pct: float | None
+
+
+class StrengthWeakness(BaseModel):
+    dimension: str
+    score: float
+    note: str
+
+
+class CoachingRecommendation(BaseModel):
+    problem: str
+    evidence: str
+    recommendation: str
+
+
+class BenchmarkRow(BaseModel):
+    label: str
+    agent_value: float
+    comparison_value: float | None
+    comparison_label: str
+
+
+class QualityOutcomeQuadrant(BaseModel):
+    quadrant: str = Field(description="star_performer | investigate_leads | strong_but_risky | needs_coaching")
+    quality_score: float
+    outcome_conversion_pct: float | None
+
+
+class AgentPerformanceReport(BaseModel):
+    """The full cross-call rollup for one agent over one period — everything
+    computed from data the app already has, plus manually-tagged outcomes.
+    See the module docstring above for what's deliberately not modeled."""
+
+    agent_name: str
+    period_start: date
+    period_end: date
+
+    calls_analyzed: int
+    calls_scored: int = Field(description="Calls with an overall_score — i.e. extraction succeeded with a score_breakdown")
+
+    avg_call_score: float | None
+    avg_customer_sentiment_score: float | None
+    compliance_score_pct: float | None
+    performance_trend_pct: float | None = Field(
+        default=None,
+        description="Change in avg_call_score vs. the immediately preceding period of equal length; None without a full prior period",
+    )
+
+    score_breakdown: AgentScoreBreakdown | None
+
+    talk_time: TalkTimeAgg | None
+    discovery_avg_score: float | None
+    objections: ObjectionAgg
+    closing: ClosingAgg
+    sentiment: SentimentAgg | None
+    conversion: ConversionAgg
+
+    quality_distribution: list[QualityBucket]
+    consistency_score: float | None = Field(description="100 minus the normalized stdev of per-call overall_score; higher = more stable")
+
+    trend: list[TrendPoint]
+    strengths: list[StrengthWeakness]
+    weaknesses: list[StrengthWeakness]
+    coaching_recommendations: list[CoachingRecommendation]
+
+    team_benchmark: list[BenchmarkRow]
+    quality_outcome_matrix: QualityOutcomeQuadrant | None
+
+    notes: list[str] = Field(
+        default_factory=list, description="Explicit call-outs for what the source doc asked for that isn't computed here, and why"
+    )

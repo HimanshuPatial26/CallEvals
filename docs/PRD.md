@@ -100,6 +100,33 @@ closing rubric scoring, buying-intent signals, rule-based compliance/script-
 adherence checks, AI coaching output, and the objection taxonomy expanded
 from 3 to the doc's 10 categories.
 
+**Second addendum (2026-08-08) — an Agent Performance layer, built on top of
+manually-tagged outcomes, not a real CRM integration.** A follow-on
+requirements doc asked for cross-call, per-rep, per-period rollups: "given
+all the calls this agent handled this month, how are they doing, and is it
+improving." That needed two things this PRD never scoped: an `agent_name`
+on every call (the app was purely per-call before this), and a data source
+for CRM-shaped metrics (conversion rate, qualified-lead rate, revenue,
+funnel stage) that this PRD explicitly parks behind a Phase 2 CRM
+integration (section 8). Rather than wait for that integration or fabricate
+numbers, calls now carry a manager-set funnel stage + deal size
+(`POST /api/calls/{id}/outcome`) — a manually recorded fact, not an
+inference, and not a CRM. Two things the doc asked for are deliberately
+*not* built, and are surfaced explicitly in every report rather than
+silently dropped: dialer-level call volume (assigned/attempted/connected/
+missed — this app has no data source for a call that was never uploaded),
+and itemized discovery-field percentages (need/budget/timeline/
+decision-maker identified individually — would need another per-call
+extraction schema change, not made in this pass). The new doc's Agent Score
+rubric also doesn't match the ScoreBreakdown rubric this PRD's Phase 0 build
+already shipped and tested (it adds a scored Sentiment dimension and an
+undefined "Call Discipline" dimension, and drops Opening/Rapport and Active
+Listening as separate dimensions) — reconciled by remapping at the
+aggregation layer only, leaving the tested per-call extraction prompt
+untouched, with Call Discipline excluded and flagged rather than scored by
+guesswork. See README "Agent Performance" for the full breakdown and
+verification status.
+
 **Correcting the v1.0 roadmap:** CRM integration sat in Phase 3 while win rate and revenue metrics sat in Phases 1–2. Those are computed from CRM outcome data. CRM moves to Phase 2 as a hard dependency.
 
 ---

@@ -148,7 +148,7 @@ export default function LeadPipelinePage() {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {loading && <p className="hint">Loading…</p>}
+      {loading && <p className="hint loading-state">Loading…</p>}
 
       {!loading && (
         <div className="lead-board">

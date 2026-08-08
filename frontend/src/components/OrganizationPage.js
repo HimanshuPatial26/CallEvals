@@ -89,7 +89,7 @@ export default function OrganizationPage({ onDrillToAgent }) {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {loading && <p className="hint">Loading…</p>}
+      {loading && <p className="hint loading-state">Loading…</p>}
 
       {!loading && report && (
         <>

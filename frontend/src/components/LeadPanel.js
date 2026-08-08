@@ -91,7 +91,7 @@ export default function LeadPanel({ leadId }) {
   }
 
   if (!lead) {
-    return <p className="hint">Loading lead…</p>;
+    return <p className="hint loading-state">Loading lead…</p>;
   }
 
   return (

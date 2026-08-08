@@ -82,7 +82,7 @@ export default function AgentPerformancePage({ initialAgentId }) {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {loading && <p className="hint">Loading…</p>}
+      {loading && <p className="hint loading-state">Loading…</p>}
 
       {!loading && agents.length === 0 && (
         <p className="hint">No calls uploaded yet — upload a call with an agent name to see performance data here.</p>

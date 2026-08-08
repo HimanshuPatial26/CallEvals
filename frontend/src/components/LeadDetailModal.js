@@ -57,7 +57,7 @@ export default function LeadDetailModal({ leadId, agents, onClose }) {
       <div className="modal panel lead-detail-modal" onClick={(e) => e.stopPropagation()}>
         {error && <p className="error">{error}</p>}
         {!lead ? (
-          <p className="hint">Loading…</p>
+          <p className="hint loading-state">Loading…</p>
         ) : (
           <>
             <div className="lead-detail-header">

@@ -123,22 +123,28 @@ check it against.
 
 | | precision | recall |
 |---|---|---|
-| next steps | 75% | 100% |
-| objections | 50% | 100% |
+| next steps | 100% | 100% |
+| objections | 75% | 100% |
 
-Below the PRD's 85% next-step launch gate (section 6) — do not treat this as
-trustworthy yet. But recall was 100% on both: the model never missed a real
-commitment or objection a manager would want flagged. Every precision miss was
-the model splitting one real conversational moment into two extracted items —
-e.g. one ground-truth next step ("draft the offer letter and send it
-tomorrow") got extracted as two separate items (the rep's and the customer's
-side of the same exchange) — not a hallucinated commitment that never
-happened. One miss (a "not looking to move fast" line tagged as a timing
-objection) is a genuinely debatable ground-truth call, not a clear model
-error. That's a specific, fixable prompt issue — instruct the model to
-consolidate related commitments/objections into one item — rather than a sign
-extraction is unreliable in general. Re-run after any prompt change; 6 calls
-is too small a sample to treat these percentages as more than directional.
+Meets the PRD's 85% next-step launch gate (section 6) — on this mock set; 6
+calls is too small a sample to treat these percentages as more than
+directional, and this still needs re-running against real brokerage calls
+before anyone trusts it in production.
+
+This wasn't the first run. The first pass came back at 75%/50% (both at 100%
+recall) — the model never missed a real commitment or objection, but it kept
+splitting one real conversational moment into two extracted items (e.g. one
+ground-truth next step, "draft the offer letter and send it tomorrow," came
+back as two separate items — the rep's side and the customer's acknowledgment
+of the same exchange). `EXTRACTION_PROMPT` in `gemini_extractor.py` now
+explicitly instructs the model to merge near-duplicate next
+steps/objections about the same underlying commitment or concern into one
+entry before finalizing its answer. Re-ran against the same 6 calls and same
+model afterward: next-step precision went 75% → 100%, objections 50% → 75%,
+recall held at 100% throughout. The one remaining objection miss ("I'm not
+really looking to move fast on this right now" tagged as a timing objection)
+is the same genuinely-debatable ground-truth call flagged in the first pass,
+not a new model error.
 
 ### Backend tests
 
@@ -152,26 +158,32 @@ they run without network access, an API key, or a downloaded Whisper model.
 
 ## Known limitations / not yet verified
 
-- **Neither ASR path has completed a real transcription in this repo.** The
+- **Neither ASR path has completed a real transcription through this app.** The
   dev sandbox this was built in blocks both `huggingface.co`
   (faster-whisper's model download) and `api.deepgram.com` at the
   network-policy level, so a real upload fails at the ASR step no matter which
   provider is configured — confirmed by actually trying both, not assumed.
-  `deepgram_provider.py`'s request/response parsing is covered by mocked
-  tests, and `faster_whisper_provider.py`'s channel-split logic is covered
-  against synthetic WAVs, but do one real upload somewhere without that
-  restriction before trusting F1 (transcription) on either provider.
-- **Gemini extraction is verified live**, not simulated — the precision
-  numbers above are from an actual run against `gemini-2.5-flash`, as is the
-  upload/status/error-surfacing mechanics check (a call with no reachable ASR
-  provider correctly ends up `status: "failed"` with a clear error, not
-  silently stuck). That live run is also what caught a real bug:
+  Deepgram's real response shape *has* been checked against a live call
+  (outside this sandbox) and matches what `deepgram_provider.py` parses
+  exactly (`results.utterances[].{start,end,channel,transcript}`) — but that
+  test call was mono, so the multichannel `channel: 0 → rep` / `channel: 1 →
+  customer` mapping is still unexercised against a real payload. faster-whisper
+  has no live confirmation at all yet. Do one real dual-channel upload
+  somewhere without the network restriction before trusting F1 fully on
+  either provider.
+- **Gemini extraction is verified live**, not simulated, and iterated on
+  live. Two real bugs surfaced only once a real API key was used, not before:
   `google-genai==0.6.0` (originally pinned) builds a `$ref`/`$defs`-based JSON
   schema for nested Pydantic models that Gemini's structured-output API
   rejects outright — every extraction call failed with a
   `pydantic.ValidationError` before hitting the network. Upgraded to
-  `google-genai==2.17.0`, which resolves nested models inline instead.
-  `tests/test_gemini_extractor_helpers.py::test_wire_schema_is_gemini_compatible`
-  guards against regressing this without needing network access.
+  `google-genai==2.17.0`, which resolves nested models inline instead — and
+  that upgrade itself required bumping `pydantic` from `2.10.5` to `2.13.4`
+  and `pydantic-settings` from `2.7.1` to `2.15.0`, since `google-genai>=2.x`
+  needs `pydantic>=2.12.5`. `test_wire_schema_is_gemini_compatible` guards
+  the schema-compatibility half of this without needing network access.
+  The precision numbers above are from two real runs against
+  `gemini-2.5-flash`, not one — the second after a prompt fix for
+  over-segmentation, with the improvement measured, not assumed.
 - No auth, no multi-tenant storage, no CRM integration — all explicitly Phase 1+
   per the PRD roadmap (section 9).

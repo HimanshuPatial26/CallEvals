@@ -12,10 +12,17 @@ two ASR/LLM providers but never attempted extraction; see "What changed" below.
 
 Everything here runs on free tiers — no GCP billing account, no paid API:
 
-- **ASR — `faster-whisper`, self-hosted.** Runs locally on CPU, no API key, no
-  per-minute billing. This is also the engine the PRD's own architecture diagram
-  names and the one it expects to self-host at scale (PRD section 7) — so Phase 0
-  is already on the intended long-term path rather than a throwaway.
+- **ASR — `faster-whisper`, self-hosted, by default.** Runs locally on CPU, no
+  API key, no per-minute billing. This is also the engine the PRD's own
+  architecture diagram names and the one it expects to self-host at scale (PRD
+  section 7) — so Phase 0 is already on the intended long-term path rather than
+  a throwaway. **Deepgram is available as an opt-in alternative** (set
+  `ASR_PROVIDER=deepgram` and `DEEPGRAM_API_KEY` in `.env`) — it gets native
+  multichannel transcription (no local channel-split step) and, closer to the
+  PRD's own per-minute cost assumption in section 7, real mono diarization via
+  `diarize=true`. That diarization flag is deliberately not wired in, though —
+  see `app/asr/deepgram_provider.py` — turning it on would silently undo the
+  Phase 1 scope cut this build otherwise respects.
 - **Extraction — Gemini Developer API free tier** (ai.google.dev). Structured
   JSON output (F2 summary, F3 next steps, F4 objections), no GCP billing account
   required, unlike Vertex AI or Cloud Speech.
@@ -48,7 +55,8 @@ review UI instead of a raw JSON dump.
 ```
 server/
   app/
-    asr/            ASRProvider interface + faster-whisper implementation
+    asr/            ASRProvider interface + faster-whisper (default) and
+                     Deepgram (opt-in) implementations, selected via factory.py
     audio/           dual-channel split
     extraction/      ExtractionProvider interface + Gemini implementation
     routers/         FastAPI routes

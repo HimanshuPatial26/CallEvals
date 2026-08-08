@@ -18,10 +18,11 @@ export function getCall(callId) {
   return request(`/api/calls/${callId}`);
 }
 
-export function uploadCall(file, agentName) {
+export function uploadCall(file, agentId, leadId) {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("agent_name", agentName);
+  formData.append("agent_id", agentId);
+  formData.append("lead_id", leadId);
   return request("/api/calls", { method: "POST", body: formData });
 }
 
@@ -33,19 +34,23 @@ export function submitFeedback(callId, itemType, itemIndex, confirmed) {
   });
 }
 
-export function submitOutcome(callId, stage, dealSizeAed) {
-  return request(`/api/calls/${callId}/outcome`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ stage, deal_size_aed: dealSizeAed }),
-  });
-}
-
 export function listAgents() {
   return request("/api/agents");
 }
 
-export function getAgentPerformance(agentName, start, end) {
+export function getAgentPerformance(agentId, start, end) {
   const params = new URLSearchParams({ start, end });
-  return request(`/api/agents/${encodeURIComponent(agentName)}/performance?${params}`);
+  return request(`/api/agents/${encodeURIComponent(agentId)}/performance?${params}`);
+}
+
+export function getLead(leadId) {
+  return request(`/api/leads/${leadId}`);
+}
+
+export function setLeadStage(leadId, stage, dealSizeAed) {
+  return request(`/api/leads/${leadId}/stage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stage, deal_size_aed: dealSizeAed }),
+  });
 }

@@ -62,6 +62,8 @@ def _new_record() -> CallRecord:
         filename="call.wav",
         dual_channel=False,
         created_at=datetime.now(timezone.utc),
+        agent_id="agent-1",
+        lead_id="lead-1",
         status="processing",
     )
 

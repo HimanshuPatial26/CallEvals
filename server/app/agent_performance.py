@@ -1,7 +1,7 @@
 """Cross-call rollups for one agent over one period (the analytics doc's
-"Agent Performance" page). Pure computation over CallRecords already in
-storage — no LLM call, no new extraction, same zero-marginal-cost pattern as
-insights.py and compliance.py.
+"Agent Performance" page). Pure computation over CallRecords/Leads already
+in storage — no LLM call, no new extraction, same zero-marginal-cost pattern
+as insights.py and compliance.py.
 
 Two things the source doc asked for are deliberately NOT computed here —
 see AgentPerformanceReport.notes for why, spelled out at the point each
@@ -15,15 +15,22 @@ gets built rather than silently skipped:
    aggregate discovery score + evidence string; adding seven new boolean
    fields there is a schema change out of scope for this pass.
 
-Conversion/funnel/revenue metrics depend entirely on CallRecord.outcome,
-which a manager sets manually via POST /api/calls/{id}/outcome — there is
-no CRM integration (PRD section 8 defers that to Phase 2).
+Conversion/funnel/revenue metrics (ROADMAP.md C1) depend entirely on
+Lead.stage / stage_history, set manually via POST /api/leads/{id}/stage —
+there is no CRM integration (PRD section 8 defers that to Phase 2). A lead
+counts as "converted" only in the period its stage_history shows it
+transitioning to won — see ConversionAgg's docstring in schemas.py.
+
+"Team" benchmarks are real teammates now (ROADMAP.md Phase A's roster),
+not "every other agent in the org" — that was a stand-in used before a real
+Team concept existed.
 """
 
 import statistics
 from datetime import date, timedelta
 
 from app.schemas import (
+    Agent,
     AgentPerformanceReport,
     AgentScoreBreakdown,
     BenchmarkRow,
@@ -34,6 +41,7 @@ from app.schemas import (
     FunnelStage,
     IntentDistribution,
     IntentLevel,
+    Lead,
     ObjectionAgg,
     ObjectionCategoryAgg,
     QualityBucket,
@@ -43,6 +51,7 @@ from app.schemas import (
     SentimentLabel,
     StrengthWeakness,
     TalkTimeAgg,
+    Team,
     TrendPoint,
 )
 
@@ -85,8 +94,20 @@ _DIM_LABELS = {
 }
 
 
-def _in_period(record: CallRecord, agent_name: str, start: date, end: date) -> bool:
-    return record.agent_name == agent_name and start <= record.created_at.date() <= end
+def _in_period(record: CallRecord, agent_id: str, start: date, end: date) -> bool:
+    return record.agent_id == agent_id and start <= record.created_at.date() <= end
+
+
+def _distinct_leads(records: list[CallRecord], leads_by_id: dict[str, Lead]) -> list[Lead]:
+    seen: dict[str, Lead] = {}
+    for r in records:
+        if r.lead_id not in seen and r.lead_id in leads_by_id:
+            seen[r.lead_id] = leads_by_id[r.lead_id]
+    return list(seen.values())
+
+
+def _reached_stage_in_period(lead: Lead, stage: FunnelStage, start: date, end: date) -> bool:
+    return any(event.stage == stage and start <= event.changed_at.date() <= end for event in lead.stage_history)
 
 
 def _communication_call_score(record: CallRecord) -> float | None:
@@ -116,9 +137,9 @@ def _dim_call_score(record: CallRecord, key: str) -> float | None:
     return dim.score / dim.max_score * 100.0
 
 
-def _dim_agg(key: str, records: list[CallRecord], other_agents_records: list[CallRecord]) -> ScoreDimensionAgg:
+def _dim_agg(key: str, records: list[CallRecord], teammate_records: list[CallRecord]) -> ScoreDimensionAgg:
     values = [v for r in records if (v := _dim_call_score(r, key)) is not None]
-    team_values = [v for r in other_agents_records if (v := _dim_call_score(r, key)) is not None]
+    team_values = [v for r in teammate_records if (v := _dim_call_score(r, key)) is not None]
     return ScoreDimensionAgg(
         label=_DIM_LABELS[key],
         agent_score=round(statistics.fmean(values), 1) if values else 0.0,
@@ -127,12 +148,12 @@ def _dim_agg(key: str, records: list[CallRecord], other_agents_records: list[Cal
     )
 
 
-def _score_breakdown(records: list[CallRecord], other_agents_records: list[CallRecord]) -> AgentScoreBreakdown | None:
+def _score_breakdown(records: list[CallRecord], teammate_records: list[CallRecord]) -> AgentScoreBreakdown | None:
     scored = [r for r in records if r.extraction and r.extraction.score_breakdown]
     if not scored:
         return None
 
-    dims = {key: _dim_agg(key, records, other_agents_records) for key in _RAW_WEIGHTS}
+    dims = {key: _dim_agg(key, records, teammate_records) for key in _RAW_WEIGHTS}
     overall = sum(dims[key].agent_score * _WEIGHTS[key] / 100.0 for key in _RAW_WEIGHTS)
 
     return AgentScoreBreakdown(
@@ -147,13 +168,13 @@ def _score_breakdown(records: list[CallRecord], other_agents_records: list[CallR
     )
 
 
-def _talk_time(records: list[CallRecord], other_agents_records: list[CallRecord]) -> TalkTimeAgg | None:
+def _talk_time(records: list[CallRecord], teammate_records: list[CallRecord]) -> TalkTimeAgg | None:
     with_insights = [r for r in records if r.insights]
     if not with_insights:
         return None
 
     rep_pct = [r.insights.rep_talk_time_ratio * 100.0 for r in with_insights]
-    team_rep_pct = [r.insights.rep_talk_time_ratio * 100.0 for r in other_agents_records if r.insights]
+    team_rep_pct = [r.insights.rep_talk_time_ratio * 100.0 for r in teammate_records if r.insights]
 
     return TalkTimeAgg(
         avg_rep_talk_pct=round(statistics.fmean(rep_pct), 1),
@@ -200,27 +221,31 @@ def _objections(records: list[CallRecord]) -> ObjectionAgg:
     )
 
 
-def _closing(records: list[CallRecord]) -> ClosingAgg:
-    tagged = [r for r in records if r.outcome.stage != FunnelStage.UNTAGGED]
-    qualified = tagged  # every manually-tagged call represents at least a qualified opportunity
+def _closing(records: list[CallRecord], leads_by_id: dict[str, Lead]) -> ClosingAgg:
+    touched_leads = _distinct_leads(records, leads_by_id)
+    tagged = [lead for lead in touched_leads if lead.stage != FunnelStage.UNTAGGED]
     demo_or_later = {FunnelStage.DEMO_BOOKED, FunnelStage.PROPOSAL_SENT, FunnelStage.WON}
     proposal_or_later = {FunnelStage.PROPOSAL_SENT, FunnelStage.WON}
 
+    calls_by_lead: dict[str, list[CallRecord]] = {}
+    for r in records:
+        calls_by_lead.setdefault(r.lead_id, []).append(r)
+
     qualified_without_next_step = sum(
-        1 for r in qualified if not (r.extraction and r.extraction.next_steps)
+        1
+        for lead in tagged
+        if not any(r.extraction and r.extraction.next_steps for r in calls_by_lead.get(lead.id, []))
     )
 
     return ClosingAgg(
         calls_with_next_step=sum(1 for r in records if r.extraction and r.extraction.next_steps),
-        calls_with_due_date=sum(
-            1 for r in records if r.extraction and any(ns.due for ns in r.extraction.next_steps)
-        ),
-        qualified_calls=len(qualified),
-        demo_booked=sum(1 for r in tagged if r.outcome.stage in demo_or_later),
-        proposals_sent=sum(1 for r in tagged if r.outcome.stage in proposal_or_later),
-        won=sum(1 for r in tagged if r.outcome.stage == FunnelStage.WON),
-        lost=sum(1 for r in tagged if r.outcome.stage == FunnelStage.LOST),
-        qualified_without_next_step=qualified_without_next_step,
+        calls_with_due_date=sum(1 for r in records if r.extraction and any(ns.due for ns in r.extraction.next_steps)),
+        qualified_leads=len(tagged),
+        demo_booked_leads=sum(1 for lead in tagged if lead.stage in demo_or_later),
+        proposals_sent_leads=sum(1 for lead in tagged if lead.stage in proposal_or_later),
+        won_leads=sum(1 for lead in tagged if lead.stage == FunnelStage.WON),
+        lost_leads=sum(1 for lead in tagged if lead.stage == FunnelStage.LOST),
+        qualified_leads_without_next_step=qualified_without_next_step,
     )
 
 
@@ -250,36 +275,39 @@ def _sentiment_agg(records: list[CallRecord]) -> SentimentAgg | None:
     )
 
 
-def _conversion(records: list[CallRecord], calls_analyzed: int) -> ConversionAgg:
-    tagged = [r for r in records if r.outcome.stage != FunnelStage.UNTAGGED]
-    won = [r for r in tagged if r.outcome.stage == FunnelStage.WON]
-    lost = [r for r in tagged if r.outcome.stage == FunnelStage.LOST]
-    deal_sizes = [r.outcome.deal_size_aed for r in won if r.outcome.deal_size_aed is not None]
+def _conversion(
+    records: list[CallRecord], leads_by_id: dict[str, Lead], period_start: date, period_end: date
+) -> ConversionAgg:
+    touched_leads = _distinct_leads(records, leads_by_id)
+    leads_touched = len(touched_leads)
+    tagged = [lead for lead in touched_leads if lead.stage != FunnelStage.UNTAGGED]
+    won_in_period = [lead for lead in touched_leads if _reached_stage_in_period(lead, FunnelStage.WON, period_start, period_end)]
+    lost_in_period = [lead for lead in touched_leads if _reached_stage_in_period(lead, FunnelStage.LOST, period_start, period_end)]
+    deal_sizes = [lead.deal_size_aed for lead in won_in_period if lead.deal_size_aed is not None]
 
-    with_intent = [r.extraction.buying_intent for r in records if r.extraction and r.extraction.buying_intent]
+    with_intent_records = [r for r in records if r.extraction and r.extraction.buying_intent]
     intent_rows = []
     for level in IntentLevel:
-        level_records = [
-            r for r in records if r.extraction and r.extraction.buying_intent and r.extraction.buying_intent.level == level
-        ]
+        level_records = [r for r in with_intent_records if r.extraction.buying_intent.level == level]
         if not level_records:
             continue
-        level_tagged = [r for r in level_records if r.outcome.stage != FunnelStage.UNTAGGED]
-        level_won = [r for r in level_records if r.outcome.stage == FunnelStage.WON]
+        level_leads = _distinct_leads(level_records, leads_by_id)
+        level_won = [lead for lead in level_leads if _reached_stage_in_period(lead, FunnelStage.WON, period_start, period_end)]
         intent_rows.append(
             IntentDistribution(
                 level=level,
                 count=len(level_records),
-                pct=round(len(level_records) / len(with_intent) * 100.0, 1) if with_intent else 0.0,
-                conversion_rate_pct=round(len(level_won) / len(level_tagged) * 100.0, 1) if level_tagged else None,
+                pct=round(len(level_records) / len(with_intent_records) * 100.0, 1) if with_intent_records else 0.0,
+                conversion_rate_pct=round(len(level_won) / len(level_leads) * 100.0, 1) if level_leads else None,
             )
         )
 
     return ConversionAgg(
-        tagged_calls=len(tagged),
-        qualified_rate_pct=round(len(tagged) / calls_analyzed * 100.0, 1) if calls_analyzed else None,
-        conversion_rate_pct=round(len(won) / calls_analyzed * 100.0, 1) if calls_analyzed else None,
-        lost_rate_pct=round(len(lost) / len(tagged) * 100.0, 1) if tagged else None,
+        leads_touched=leads_touched,
+        leads_tagged=len(tagged),
+        qualified_rate_pct=round(len(tagged) / leads_touched * 100.0, 1) if leads_touched else None,
+        conversion_rate_pct=round(len(won_in_period) / leads_touched * 100.0, 1) if leads_touched else None,
+        lost_rate_pct=round(len(lost_in_period) / len(tagged) * 100.0, 1) if tagged else None,
         revenue_aed=round(sum(deal_sizes), 2) if deal_sizes else None,
         avg_deal_size_aed=round(sum(deal_sizes) / len(deal_sizes), 2) if deal_sizes else None,
         intent_breakdown=intent_rows,
@@ -307,7 +335,7 @@ def _consistency_score(records: list[CallRecord]) -> float | None:
     return round(max(0.0, 100.0 - statistics.pstdev(scores)), 1)
 
 
-def _trend(records: list[CallRecord], period_start: date, period_end: date) -> list[TrendPoint]:
+def _trend(records: list[CallRecord], leads_by_id: dict[str, Lead], period_start: date, period_end: date) -> list[TrendPoint]:
     span_days = (period_end - period_start).days + 1
     num_weeks = max(1, -(-span_days // 7))  # ceil division
     points = []
@@ -318,14 +346,14 @@ def _trend(records: list[CallRecord], period_start: date, period_end: date) -> l
         if not week_records:
             continue
         scored = [r.overall_score for r in week_records if r.overall_score is not None]
-        tagged = [r for r in week_records if r.outcome.stage != FunnelStage.UNTAGGED]
-        won = sum(1 for r in week_records if r.outcome.stage == FunnelStage.WON)
+        week_leads = _distinct_leads(week_records, leads_by_id)
+        won_in_week = sum(1 for lead in week_leads if _reached_stage_in_period(lead, FunnelStage.WON, week_start, week_end))
         points.append(
             TrendPoint(
                 period_label=f"Week {week + 1}",
                 calls=len(week_records),
                 avg_score=round(statistics.fmean(scored), 1) if scored else None,
-                conversion_rate_pct=round(won / len(week_records) * 100.0, 1) if week_records else None,
+                conversion_rate_pct=round(won_in_week / len(week_leads) * 100.0, 1) if week_leads else None,
             )
         )
     return points
@@ -394,12 +422,12 @@ def _coaching(weaknesses: list[StrengthWeakness], breakdown: AgentScoreBreakdown
             )
         )
 
-    if closing.qualified_calls > 0 and closing.qualified_without_next_step > 0:
-        pct = closing.qualified_without_next_step / closing.qualified_calls * 100.0
+    if closing.qualified_leads > 0 and closing.qualified_leads_without_next_step > 0:
+        pct = closing.qualified_leads_without_next_step / closing.qualified_leads * 100.0
         recommendations.append(
             CoachingRecommendation(
-                problem=f"Agent fails to log a next step in {pct:.0f}% of qualified calls.",
-                evidence=f"{closing.qualified_without_next_step} of {closing.qualified_calls} qualified calls ended without a specific next step.",
+                problem=f"Agent fails to log a next step for {pct:.0f}% of qualified leads.",
+                evidence=f"{closing.qualified_leads_without_next_step} of {closing.qualified_leads} qualified leads had no call with a specific next step this period.",
                 recommendation=(
                     "Always close with an explicit, time-bound next step, e.g. 'I'll send the proposal today — "
                     "can we schedule 15 minutes tomorrow at 3pm to review it?'"
@@ -414,10 +442,13 @@ def _team_benchmark(
     talk_time: TalkTimeAgg | None,
     conversion: ConversionAgg,
     compliance_score_pct: float | None,
-    other_agents_records: list[CallRecord],
+    teammate_records: list[CallRecord],
+    leads_by_id: dict[str, Lead],
+    period_start: date,
+    period_end: date,
 ) -> list[BenchmarkRow]:
     rows = []
-    other_scores = [r.overall_score for r in other_agents_records if r.overall_score is not None]
+    other_scores = [r.overall_score for r in teammate_records if r.overall_score is not None]
     team_avg_score = statistics.fmean(other_scores) if other_scores else None
     if avg_call_score is not None:
         rows.append(
@@ -438,7 +469,7 @@ def _team_benchmark(
             )
         )
     if compliance_score_pct is not None:
-        other_compliance = [r.compliance.adherence_pct for r in other_agents_records if r.compliance]
+        other_compliance = [r.compliance.adherence_pct for r in teammate_records if r.compliance]
         rows.append(
             BenchmarkRow(
                 label="Compliance %",
@@ -448,13 +479,13 @@ def _team_benchmark(
             )
         )
     if conversion.conversion_rate_pct is not None:
-        other_won = sum(1 for r in other_agents_records if r.outcome.stage == FunnelStage.WON)
-        other_total = len(other_agents_records)
+        other_leads = _distinct_leads(teammate_records, leads_by_id)
+        other_won = sum(1 for lead in other_leads if _reached_stage_in_period(lead, FunnelStage.WON, period_start, period_end))
         rows.append(
             BenchmarkRow(
                 label="Conversion rate %",
                 agent_value=conversion.conversion_rate_pct,
-                comparison_value=round(other_won / other_total * 100.0, 1) if other_total else None,
+                comparison_value=round(other_won / len(other_leads) * 100.0, 1) if other_leads else None,
                 comparison_label="Team average",
             )
         )
@@ -485,11 +516,22 @@ def _quality_outcome_matrix(avg_call_score: float | None, conversion: Conversion
 
 
 def compute_agent_performance(
-    all_records: list[CallRecord], agent_name: str, period_start: date, period_end: date
+    all_records: list[CallRecord],
+    all_leads: list[Lead],
+    roster: list[Agent],
+    teams: list[Team],
+    agent_id: str,
+    period_start: date,
+    period_end: date,
 ) -> AgentPerformanceReport:
-    records = [r for r in all_records if _in_period(r, agent_name, period_start, period_end) and r.status == "done"]
-    other_agents_records = [
-        r for r in all_records if r.agent_name != agent_name and period_start <= r.created_at.date() <= period_end and r.status == "done"
+    agent = next((a for a in roster if a.id == agent_id), None)
+    team = next((t for t in teams if agent and t.id == agent.team_id), None) if agent else None
+    teammate_ids = {a.id for a in roster if agent and a.team_id == agent.team_id and a.id != agent_id} if agent and agent.team_id else set()
+    leads_by_id = {lead.id: lead for lead in all_leads}
+
+    records = [r for r in all_records if _in_period(r, agent_id, period_start, period_end) and r.status == "done"]
+    teammate_records = [
+        r for r in all_records if r.agent_id in teammate_ids and period_start <= r.created_at.date() <= period_end and r.status == "done"
     ]
 
     calls_analyzed = len(records)
@@ -504,7 +546,7 @@ def compute_agent_performance(
 
     prev_end = period_start - timedelta(days=1)
     prev_start = prev_end - (period_end - period_start)
-    prev_records = [r for r in all_records if _in_period(r, agent_name, prev_start, prev_end) and r.status == "done"]
+    prev_records = [r for r in all_records if _in_period(r, agent_id, prev_start, prev_end) and r.status == "done"]
     prev_scored = [r.overall_score for r in prev_records if r.overall_score is not None]
     performance_trend_pct = None
     if scored and prev_scored and statistics.fmean(prev_scored) > 0:
@@ -513,12 +555,12 @@ def compute_agent_performance(
             1,
         )
 
-    breakdown = _score_breakdown(records, other_agents_records)
-    talk_time = _talk_time(records, other_agents_records)
+    breakdown = _score_breakdown(records, teammate_records)
+    talk_time = _talk_time(records, teammate_records)
     objections = _objections(records)
-    closing = _closing(records)
+    closing = _closing(records, leads_by_id)
     sentiment_agg = _sentiment_agg(records)
-    conversion = _conversion(records, calls_analyzed)
+    conversion = _conversion(records, leads_by_id, period_start, period_end)
     strengths, weaknesses = _strengths_and_weaknesses(breakdown, records)
 
     notes = [
@@ -527,16 +569,23 @@ def compute_agent_performance(
         "Discovery is one aggregate score; itemized need/budget/timeline/decision-maker-identified percentages "
         "would need a per-call extraction schema change not made in this pass.",
     ]
-    if not other_agents_records:
-        notes.append("No other agents have calls in this period yet — team benchmarks will populate once they do.")
-    if conversion.tagged_calls == 0:
+    if not agent or not agent.team_id:
+        notes.append("This agent has no team assigned yet — team benchmarks will populate once they're placed on a team.")
+    elif not teammate_records:
+        notes.append("No teammates have calls in this period yet — team benchmarks will populate once they do.")
+    if conversion.leads_touched == 0:
+        notes.append("No leads were attributed to this agent's calls in this period.")
+    elif conversion.leads_tagged == 0:
         notes.append(
-            "No calls have a manually-tagged outcome yet — conversion/funnel/revenue metrics need at least one "
-            "tag via POST /api/calls/{id}/outcome."
+            "None of this agent's leads have a stage set yet — conversion/funnel/revenue metrics need at least one "
+            "tag via POST /api/leads/{id}/stage."
         )
 
     return AgentPerformanceReport(
-        agent_name=agent_name,
+        agent_id=agent_id,
+        agent_name=agent.name if agent else agent_id,
+        team_id=team.id if team else None,
+        team_name=team.name if team else None,
         period_start=period_start,
         period_end=period_end,
         calls_analyzed=calls_analyzed,
@@ -554,11 +603,13 @@ def compute_agent_performance(
         conversion=conversion,
         quality_distribution=_quality_distribution(records),
         consistency_score=_consistency_score(records),
-        trend=_trend(records, period_start, period_end),
+        trend=_trend(records, leads_by_id, period_start, period_end),
         strengths=strengths,
         weaknesses=weaknesses,
         coaching_recommendations=_coaching(weaknesses, breakdown, closing),
-        team_benchmark=_team_benchmark(avg_call_score, talk_time, conversion, compliance_score_pct, other_agents_records),
+        team_benchmark=_team_benchmark(
+            avg_call_score, talk_time, conversion, compliance_score_pct, teammate_records, leads_by_id, period_start, period_end
+        ),
         quality_outcome_matrix=_quality_outcome_matrix(avg_call_score, conversion),
         notes=notes,
     )

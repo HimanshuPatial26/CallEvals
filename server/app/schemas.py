@@ -222,16 +222,6 @@ class CallInsights(BaseModel):
     )
 
 
-class CallOutcome(BaseModel):
-    """The manually-tagged funnel stage + deal size behind every CRM-shaped
-    agent-performance metric (conversion rate, qualified-lead rate, revenue,
-    the quality-vs-outcome matrix). Defaults to untagged/unknown — an
-    unreviewed call should never silently count as "lost" or "$0"."""
-
-    stage: FunnelStage = FunnelStage.UNTAGGED
-    deal_size_aed: float | None = Field(default=None, ge=0.0, description="Only meaningful once stage=won")
-
-
 class ReviewFeedback(BaseModel):
     """Manager confirm/reject on an extracted next step or objection.
 
@@ -244,14 +234,81 @@ class ReviewFeedback(BaseModel):
     confirmed: bool
 
 
+# --- Roster & lead identity (ROADMAP.md Phase A) ---
+#
+# Replaces the free-text agent_name / call-level CallOutcome from the
+# previous pass. A real org has a roster (who's on which team) and leads
+# that outlive any single call (a lead gets called multiple times before it
+# converts) — neither existed before this. No Organization entity yet:
+# nothing in this pass needs one, and it stays out until Phase B's org
+# rollup actually requires it.
+
+
+class Team(BaseModel):
+    id: str
+    name: str
+    manager_agent_id: str | None = Field(default=None, description="FK to Agent — a manager is an agent record, not a separate entity")
+
+
+class Agent(BaseModel):
+    id: str
+    name: str
+    team_id: str | None = Field(default=None, description="None = not yet assigned to a team")
+    is_manager: bool = False
+    active: bool = True
+
+
+class LeadStageEvent(BaseModel):
+    """One entry in a lead's stage history. Conversion metrics key off
+    *when* a lead reached a stage, not just its current stage — a lead that
+    won six months ago shouldn't inflate this month's conversion rate just
+    because someone views the report today."""
+
+    stage: FunnelStage
+    changed_at: datetime
+    changed_by: str | None = Field(default=None, description="Agent id or free text; None until auth exists (ROADMAP Phase E)")
+
+
+class Lead(BaseModel):
+    """A prospect, independent of any single call. Replaces the previous
+    call-level CallOutcome — a lead's funnel stage is the single source of
+    truth for conversion, not whichever call happened to get tagged."""
+
+    id: str
+    display_name: str
+    phone: str | None = None
+    source: str | None = Field(default=None, description="Free text for now — no fixed channel/campaign taxonomy yet")
+    assigned_agent_id: str | None = None
+    stage: FunnelStage = FunnelStage.UNTAGGED
+    deal_size_aed: float | None = Field(default=None, ge=0.0, description="Only meaningful once stage=won")
+    stage_history: list[LeadStageEvent] = Field(default_factory=list)
+    created_at: datetime
+
+
+class LeadCallSummary(BaseModel):
+    """A trimmed call reference for Lead detail views — full CallRecord
+    (transcript, extraction) is fetched separately via GET /api/calls/{id}
+    when actually needed; a lead's call history doesn't need every
+    transcript segment just to list "5 calls, most recent Aug 3"."""
+
+    id: str
+    created_at: datetime
+    agent_id: str
+    overall_score: float | None
+    status: str
+
+
+class LeadDetail(Lead):
+    calls: list[LeadCallSummary] = Field(default_factory=list)
+
+
 class CallRecord(BaseModel):
     id: str
     filename: str
     dual_channel: bool
     created_at: datetime
-    agent_name: str = Field(
-        default="Unassigned", description="Rep who handled this call, captured at upload time — required for any agent-level rollup"
-    )
+    agent_id: str = Field(description="FK to Agent — required, every call is attributed to a real roster entry")
+    lead_id: str = Field(description="FK to Lead — required, every call is attributed to a real lead")
     transcript: list[TranscriptSegment] = Field(default_factory=list)
     extraction: ExtractionResult | None = None
     insights: CallInsights | None = None
@@ -260,7 +317,6 @@ class CallRecord(BaseModel):
         default=None,
         description="Sum of the 7 LLM-scored rubric dimensions plus the compliance-derived score, out of 100 (doc section 18)",
     )
-    outcome: CallOutcome = Field(default_factory=CallOutcome)
     feedback: list[ReviewFeedback] = Field(default_factory=list)
     status: str = Field(default="processing", description="processing | done | failed")
     error: str | None = None
@@ -283,7 +339,7 @@ class ScoreDimensionAgg(BaseModel):
     label: str
     agent_score: float = Field(description="0-100, rescaled from the dimension's own per-call max")
     team_benchmark: float | None = Field(
-        default=None, description="0-100 average across other agents' calls in the same period; None without team data yet"
+        default=None, description="0-100 average across this agent's teammates' calls in the same period; None if the agent has no team or no teammate data yet"
     )
     calls_scored: int
 
@@ -315,7 +371,7 @@ class TalkTimeAgg(BaseModel):
     avg_interruptions: float
     avg_questions_per_call: float
     avg_longest_monologue_seconds: float
-    team_avg_rep_talk_pct: float | None = None
+    team_avg_rep_talk_pct: float | None = Field(default=None, description="Average across this agent's teammates, not the whole org")
 
 
 class ObjectionCategoryAgg(BaseModel):
@@ -333,15 +389,23 @@ class ObjectionAgg(BaseModel):
 
 
 class ClosingAgg(BaseModel):
+    """Current-snapshot counts, not period-scoped events: "of the leads I
+    talked to this period, how many are, right now, sitting in each funnel
+    column." Distinct from ConversionAgg.conversion_rate_pct, which counts
+    only the leads that actually *transitioned* to won during this specific
+    period — a lead currently sitting at "won" might have converted last
+    quarter, which this section would still count but conversion_rate_pct
+    would not."""
+
     calls_with_next_step: int = Field(description="Heuristic proxy for 'closing attempt' — no separate manual signal for it")
     calls_with_due_date: int
-    qualified_calls: int
-    demo_booked: int
-    proposals_sent: int
-    won: int
-    lost: int
-    qualified_without_next_step: int = Field(
-        description="Qualified calls that ended with no logged next step — the funnel-leakage signal doc section 11 calls out"
+    qualified_leads: int = Field(description="Distinct leads touched this period whose current stage != untagged")
+    demo_booked_leads: int
+    proposals_sent_leads: int
+    won_leads: int = Field(description="Current-stage snapshot, not period-scoped — see class docstring")
+    lost_leads: int
+    qualified_leads_without_next_step: int = Field(
+        description="Qualified leads where none of this agent's calls to them (in period) logged a next step — the funnel-leakage signal doc section 11 calls out"
     )
 
 
@@ -363,14 +427,22 @@ class IntentDistribution(BaseModel):
 
 
 class ConversionAgg(BaseModel):
-    """Entirely dependent on manually-tagged CallOutcome. None fields mean
-    'not enough tagged calls to compute this', never a silent zero."""
+    """Lead-level conversion (ROADMAP.md C1) — entirely dependent on
+    manually-tagged Lead.stage / stage_history, since there's no CRM
+    integration. None fields mean 'not enough data to compute this', never
+    a silent zero.
 
-    tagged_calls: int
+    conversion_rate_pct and lost_rate_pct are period-scoped: a lead only
+    counts if its stage_history shows it *transitioning* to won/lost during
+    this specific period, not merely sitting at that stage when queried —
+    see ClosingAgg's docstring for why that distinction matters."""
+
+    leads_touched: int = Field(description="Distinct leads with >=1 call from this agent in the period — the denominator for every rate below")
+    leads_tagged: int = Field(description="Of leads_touched, how many have ever had their stage set past untagged")
     qualified_rate_pct: float | None
-    conversion_rate_pct: float | None
-    lost_rate_pct: float | None
-    revenue_aed: float | None
+    conversion_rate_pct: float | None = Field(description="Leads that transitioned to won during this period / leads_touched")
+    lost_rate_pct: float | None = Field(description="Leads that transitioned to lost during this period / leads_tagged")
+    revenue_aed: float | None = Field(description="Sum of deal_size_aed for leads that won during this period")
     avg_deal_size_aed: float | None
     intent_breakdown: list[IntentDistribution]
 
@@ -418,7 +490,10 @@ class AgentPerformanceReport(BaseModel):
     computed from data the app already has, plus manually-tagged outcomes.
     See the module docstring above for what's deliberately not modeled."""
 
+    agent_id: str
     agent_name: str
+    team_id: str | None
+    team_name: str | None
     period_start: date
     period_end: date
 

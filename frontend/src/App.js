@@ -39,10 +39,6 @@ function App() {
     setCalls((prev) => prev.map((c) => (c.id === selectedId ? { ...c, feedback: newFeedback } : c)));
   }
 
-  function handleOutcomeChange(newOutcome) {
-    setCalls((prev) => prev.map((c) => (c.id === selectedId ? { ...c, outcome: newOutcome } : c)));
-  }
-
   const selectedCall = calls.find((c) => c.id === selectedId);
 
   return (
@@ -71,7 +67,7 @@ function App() {
 
           <main className="main">
             {selectedCall ? (
-              <CallDetail call={selectedCall} onFeedbackChange={handleFeedbackChange} onOutcomeChange={handleOutcomeChange} />
+              <CallDetail call={selectedCall} onFeedbackChange={handleFeedbackChange} />
             ) : (
               <p className="hint">Select a call to review it.</p>
             )}

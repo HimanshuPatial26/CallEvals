@@ -181,22 +181,22 @@ shape of feature — it needed two foundational pieces that didn't exist
 before this pass, and it deliberately does *not* build everything the doc
 asked for.
 
-**Foundation:**
+**Foundation (superseded 2026-08-08 by the "Roster & leads" section below —
+kept here for history, not current):**
 
-- **`CallRecord.agent_name`** — every call is now attributed to a rep at
-  upload time (a required form field; existing/unlabeled records default to
-  `"Unassigned"` rather than breaking). Nothing about "agent-level" analytics
-  is possible without this, and it didn't exist until now — the app was
-  purely per-call.
-- **`CallRecord.outcome`** (`app/schemas.py`'s `CallOutcome`) — a manager-set
-  funnel stage (untagged/qualified/demo booked/proposal sent/won/lost) plus
-  deal size, set via `POST /api/calls/{id}/outcome` and a new Outcome control
-  on the call review page. This is the *only* data source behind every
-  CRM-shaped metric the doc asked for (conversion rate, qualified-lead rate,
-  revenue, the quality-vs-outcome matrix) — there's no CRM/dialer
-  integration (PRD section 8 defers that to Phase 2), so those numbers are
-  either this manually-recorded fact or nothing. No fabricated CRM data
-  anywhere in this build.
+- ~~`CallRecord.agent_name`~~ — a required free-text field at upload time.
+  Replaced by a real `agent_id` foreign key into a managed roster; see
+  "Roster & leads" below.
+- ~~`CallRecord.outcome` (`CallOutcome`)~~ — a manager-set funnel stage +
+  deal size on the *call*. Replaced by `Lead.stage`, since a lead can span
+  many calls and the call-level version had no way to represent that
+  without an arbitrary "which call owns the outcome" choice. See "Roster &
+  leads" below for what replaced it and why.
+
+This section originally described those two fields as the foundation for
+everything that follows; the aggregation logic they fed
+(`app/agent_performance.py`, described next) is unchanged in shape, just
+rewired onto the real roster/lead model.
 
 **`app/agent_performance.py`** computes the full rollup — pure aggregation
 over `CallRecord`s already in storage, no LLM call, same zero-marginal-cost
@@ -259,13 +259,85 @@ exercised against a *real* multi-call dataset is the full pipeline end to
 end at this volume (12+ calls through actual ASR + Gemini extraction) —
 that's a quota/budget question, not a correctness one.
 
-**What this layer is not, yet:** a TEAM or ORGANIZATION rollup, or a real
-lead entity — every call is still attributed to a free-text agent name with
-no roster, no manager, no team, and outcome tagging lives on the call, not
-on a lead that can span many calls. The path from here to a real
-CALL → AGENT → TEAM → ORGANIZATION product at ~100-agent scale, with calls
-attributed to leads and CRM-grade conversion metrics, is
-[docs/ROADMAP.md](docs/ROADMAP.md).
+**What this layer is not, yet:** a TEAM or ORGANIZATION rollup — the roster
+(next section) added real teams, but nothing aggregates a team's or org's
+numbers across its agents yet. That's [docs/ROADMAP.md](docs/ROADMAP.md)
+Phase B, the next thing being built.
+
+## Roster & leads (2026-08-08) — real identity, CRM-grade conversion
+
+[docs/ROADMAP.md](docs/ROADMAP.md) Phase A + C1, for the target scenario of
+~100 agents across 10 teams under 10 managers. Two things didn't exist
+before this pass and everything else in this section depends on them:
+
+- **A real roster.** `agent_name` (free text) is gone. Every call now
+  carries `agent_id`, a foreign key into a managed `Team`/`Agent` roster
+  (`POST /api/teams`, `POST /api/agents`, `PATCH /api/agents/{id}`, plus
+  `POST /api/agents/import` for bulk CSV/JSON onboarding — standing up a
+  100-agent org one API call at a time isn't realistic). A manager is an
+  `Agent` record with `is_manager: true` and a `Team.manager_agent_id`
+  pointing at them, not a separate entity — no reason to duplicate a
+  person's identity depending on whether they also take calls.
+- **A real `Lead` entity.** A prospect gets called more than once before
+  converting; the old call-level `CallOutcome` had no way to represent
+  that — five calls to the same person looked like five independent,
+  possibly-contradictory outcome tags. Now every call also carries
+  `lead_id`, and the lead's funnel stage (`POST /api/leads/{id}/stage`) is
+  the single source of truth for conversion, with a full `stage_history`
+  audit trail (who set it, when) rather than a value that silently
+  overwrites itself.
+
+**The one correctness property that actually matters here, and is
+unit-tested directly:** a lead currently sitting at "won" only counts
+toward a period's `conversion_rate_pct` if its `stage_history` shows it
+*transitioning* to won during that specific period — not merely being won
+by the time someone runs the report. A lead that converted in June doesn't
+retroactively inflate August's numbers just because its current stage
+still reads "won." `ClosingAgg` (funnel counts) and `ConversionAgg`
+(conversion rate) deliberately answer different questions for exactly this
+reason — see both classes' docstrings in `schemas.py` — and can legitimately
+disagree: a lead can show up in this period's "won" *snapshot* while
+contributing zero to this period's *conversion rate*, if it won earlier.
+
+**Team benchmarks got more honest as a side effect.** Before the roster
+existed, "team benchmark" in the Agent Performance dashboard was computed
+against *every other agent in the org*, because there was no real team
+concept to benchmark against. Now it's computed against actual teammates
+only — confirmed live: two agents on different teams with different
+average scores now produce genuinely different, correctly-scoped benchmark
+numbers, and an agent with no team (or a team with no other active
+teammates yet) gets an explicit note instead of a benchmark quietly
+computed from the wrong population.
+
+**Manual, not CRM-integrated, and that's deliberate.** There's still no
+dialer/CRM integration (PRD section 8 defers that to Phase 2) — a lead's
+stage is a fact a manager records, same as before, just attached to the
+right entity now. `assigned_agent_id` on a Lead doesn't have to match the
+`agent_id` on any particular call to it (someone can cover a call for a
+teammate without reassigning the lead), and there's no dedup-by-phone-number
+safeguard yet, so creating a duplicate `Lead` for a prospect who already
+has one is possible — noted as a real gap in ROADMAP.md rather than solved
+here.
+
+**Verification.** 42 new/updated backend tests: `test_roster_storage.py`
+and `test_lead_storage.py` (filesystem persistence, including that
+`stage_history` is appended to, never overwritten), a full rewrite of
+`test_agent_performance.py` (17 tests, including the period-scoped
+conversion property above and a test that specifically proves team
+benchmarks exclude non-teammates), and new `test_roster_router.py` /
+`test_leads_router.py` covering the CRUD + bulk-import + validation paths.
+All backend tests run against an isolated temp directory
+(`tests/conftest.py`) rather than the real `server/data/` — the previous
+test suite didn't need this because nothing wrote through the API before;
+adding roster/lead CRUD endpoints changed that, and the fix landed before
+any test could pollute real data. The full stack was then verified live,
+through the real API, not synthetic shortcuts: teams and agents created via
+`POST /api/teams`/`POST /api/agents`, leads via `POST /api/leads`, stages
+set via `POST /api/leads/{id}/stage`, calls attributed to the resulting
+real IDs, and the Agent Performance dashboard confirmed rendering correct,
+agent-specific team-benchmark numbers for two agents on different teams —
+zero console errors, real data throughout except the ASR/Gemini pipeline
+itself (still gated by the free-tier quota noted above).
 
 ## What changed from the original scaffold
 
@@ -295,19 +367,22 @@ server/
     insights.py      rule-based behavior readouts (talk time, monologues, questions, interruptions)
     compliance.py    rule-based script-adherence checks (analytics doc section 14)
     agent_performance.py  cross-call rollups per agent/period — pure aggregation, no LLM call
+    roster_storage.py      filesystem CRUD for Team/Agent
+    lead_storage.py        filesystem CRUD for Lead, incl. stage_history append-on-change
     pipeline.py      orchestrates ASR -> extraction -> insights/compliance/overall_score
-    storage.py       filesystem persistence
-    schemas.py       F1-F4 + score/sentiment/intent/coaching/compliance + agent-performance data model
+    storage.py       filesystem persistence for calls
+    schemas.py       F1-F4 + score/sentiment/intent/coaching/compliance + roster/lead + agent-performance data model
   eval/
     mock_calls/      6 scripted calls + hand-labeled ground truth (PRD section 9)
     run_precision_eval.py
   tests/
+    conftest.py      redirects filesystem storage at a temp dir for the whole test session
 frontend/
   src/
     components/      UploadPanel, CallList, CallDetail, TranscriptView,
                       NextStepsPanel, ObjectionTags, CallInsightsPanel,
                       ScoreBreakdownPanel, SentimentPanel, BuyingIntentPanel,
-                      CoachingPanel, ComplianceChecklist, OutcomePanel,
+                      CoachingPanel, ComplianceChecklist, LeadPanel,
                       AgentPerformancePage + AgentOverviewPanel,
                       AgentScoreBreakdownPanel, AgentBehaviorPanel,
                       AgentFunnelPanel, AgentSentimentIntentPanel,
@@ -315,6 +390,7 @@ frontend/
     api/client.js
 docs/
   PRD.md
+  ROADMAP.md
 ```
 
 ## Setup
@@ -465,5 +541,6 @@ through the actual app (not raw curl):
   re-confirming against a real multi-call run before trusting the numbers
   in front of an actual manager.
 - No auth, no multi-tenant storage, no CRM integration beyond the manual
-  per-call outcome tag described above — all explicitly Phase 1+ per the PRD
-  roadmap (section 9).
+  lead-stage tagging described in "Roster & leads" above — all explicitly
+  Phase 1+ per the PRD roadmap (section 9). No dedup-by-phone-number on
+  Lead creation either — see that section for the gap.

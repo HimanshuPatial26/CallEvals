@@ -8,9 +8,9 @@ import SentimentPanel from "./SentimentPanel";
 import BuyingIntentPanel from "./BuyingIntentPanel";
 import CoachingPanel from "./CoachingPanel";
 import ComplianceChecklist from "./ComplianceChecklist";
-import OutcomePanel from "./OutcomePanel";
+import LeadPanel from "./LeadPanel";
 
-export default function CallDetail({ call, onFeedbackChange, onOutcomeChange }) {
+export default function CallDetail({ call, onFeedbackChange }) {
   const [highlightTimestamp, setHighlightTimestamp] = useState(null);
 
   if (call.status === "processing") {
@@ -92,8 +92,8 @@ export default function CallDetail({ call, onFeedbackChange, onOutcomeChange }) 
       </div>
 
       <section className="panel">
-        <h3>Outcome</h3>
-        <OutcomePanel callId={call.id} outcome={call.outcome} onOutcomeChange={onOutcomeChange} />
+        <h3>Lead</h3>
+        <LeadPanel leadId={call.lead_id} />
       </section>
     </div>
   );

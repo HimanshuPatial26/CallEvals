@@ -4,14 +4,16 @@
 organization. Every call attributed to a lead. Conversion measured at both
 call level and lead level, in a shape a real CRM would recognize.
 
-**Where this repo actually is today, honestly:** a working Phase 0 pipeline
-(F1–F4 + score/sentiment/objections/compliance/coaching per call) plus an
-Agent-level rollup layer added on top. That's CALL and AGENT. TEAM and
-ORGANIZATION don't exist — there's no team/manager/org concept at all.
-Leads don't exist either — a call is attributed to a free-text agent name
-and, optionally, a manually-tagged outcome on that one call. Nothing here
-is "finished" at 100-agent scale yet; this document is the gap, broken into
-shippable phases.
+**Where this repo actually is today, honestly (updated 2026-08-08):** a
+working Phase 0 pipeline (F1–F4 + score/sentiment/objections/compliance/
+coaching per call), an Agent-level rollup layer, and now (Phase A + C1) a
+real roster (Team/Agent) and Lead entity — every call is attributed to a
+real `agent_id` and `lead_id`, and conversion is measured at the lead
+level, not guessed from a tag on one call. That's CALL and AGENT, solid.
+TEAM and ORGANIZATION *rollups* still don't exist — the roster has teams,
+but nothing aggregates a team's or org's numbers yet (that's Phase B, next
+up). Nothing here is "finished" at 100-agent scale yet; this document is
+the gap, broken into shippable phases.
 
 ---
 
@@ -30,22 +32,41 @@ it doesn't block the code.
 
 ## Phase A — Identity & lead data model (foundation)
 
+**Status: A1–A5 done (2026-08-08). A6 skipped — turned out unnecessary.**
+
 Nothing below this is buildable without it: TEAM and ORGANIZATION rollups
 need a real roster, and lead-level conversion needs a lead entity that
 outlives any single call.
 
-| # | Line item | Why | Size |
-|---|---|---|---|
-| A1 | `Organization` / `Team` / `Agent` roster entities, replacing free-text `agent_name` | An org has 10 teams of ~10 agents under 10 managers — that's structure, not a string field. `Team.manager_id`, `Agent.team_id`. | M |
-| A2 | `Lead` entity: `lead_id`, contact reference, source, `assigned_agent_id`, current stage, created_at | A lead gets called multiple times before it converts. Right now each call's manual outcome tag *is* the only outcome record — there's no entity for "this prospect" that outlives one call. | M |
-| A3 | Lead stage history (audit log: stage, changed_by, changed_at) | Conversion analytics needs "when did this lead reach won," not just "what's the latest tag." Also the only way to catch/audit a manager overwriting an outcome. | S |
-| A4 | `CallRecord.lead_id` (required) + `CallRecord.agent_id` (FK, not free text) | Every call attributed to a lead — this is explicitly what was asked for. | S |
-| A5 | Move `CallOutcome` from call-level to lead-level | A lead with 5 calls before winning is **one** conversion, not a coin-flip over which call "owns" the won tag. Current call-level `outcome` field gets deprecated in favor of `Lead.stage`. | M |
-| A6 | Migration path for existing filesystem data (backfill agent roster + synthetic leads from history) | Don't discard the calls already in `server/data/`. | S |
+| # | Line item | Why | Size | Status |
+|---|---|---|---|---|
+| A1 | `Team` / `Agent` roster entities, replacing free-text `agent_name` | An org has 10 teams of ~10 agents under 10 managers — that's structure, not a string field. `Team.manager_agent_id`, `Agent.team_id`. | M | **Done** — no `Organization` entity built; nothing needs one until Phase B |
+| A2 | `Lead` entity: `lead_id`, contact reference, source, `assigned_agent_id`, current stage, created_at | A lead gets called multiple times before it converts. Right now each call's manual outcome tag *is* the only outcome record — there's no entity for "this prospect" that outlives one call. | M | **Done** |
+| A3 | Lead stage history (audit log: stage, changed_by, changed_at) | Conversion analytics needs "when did this lead reach won," not just "what's the latest tag." Also the only way to catch/audit a manager overwriting an outcome. | S | **Done** — `changed_by` is optional free text for now; real attribution needs Phase E auth |
+| A4 | `CallRecord.lead_id` (required) + `CallRecord.agent_id` (FK, not free text) | Every call attributed to a lead — this is explicitly what was asked for. | S | **Done** — both validated against the roster/lead store at upload time (400 if unknown) |
+| A5 | Move `CallOutcome` from call-level to lead-level | A lead with 5 calls before winning is **one** conversion, not a coin-flip over which call "owns" the won tag. Current call-level `outcome` field gets deprecated in favor of `Lead.stage`. | M | **Done** — `POST /api/calls/{id}/outcome` removed, replaced by `POST /api/leads/{id}/stage` |
+| A6 | Migration path for existing filesystem data (backfill agent roster + synthetic leads from history) | Don't discard the calls already in `server/data/`. | S | **Skipped** — `server/data/calls/` was empty when this shipped (no real customer data yet), so this was a clean cutover, not a migration |
 
-**Open question to settle before A2:** does a lead map 1:1 to a phone
-number, or can the same person have multiple leads (e.g., re-engaging after
-6 months)? Real CRMs disagree on this; needs a decision, not a guess.
+**Decided rather than left open:** a lead maps 1:1 to whatever the manager
+decides to create via `POST /api/leads` — the app doesn't enforce phone
+number as a dedup key, so re-engaging the same person as a second Lead is
+possible and not prevented. That's a real gap (nothing stops accidental
+duplicate leads for the same prospect), noted rather than solved — dedup-
+by-phone would be a reasonable Phase C addition once C5's lead UI exists to
+surface "did you mean this existing lead" at creation time.
+
+**Two things shipped beyond the original A1–A5 scope, because they fell out
+of the roster naturally:**
+- **Team benchmarks now compare against real teammates**, not "every other
+  agent in the org." `agent_performance.py`'s team-benchmark logic used to
+  treat every other agent as a stand-in for "team" because no real Team
+  concept existed; now that one does, an agent with no team (or no
+  teammates with data yet) gets an explicit note instead of a number
+  quietly computed from the wrong population.
+- **Upload/outcome UX**: `UploadPanel` now has a real roster dropdown
+  (`agent_id`) instead of free text, and `CallDetail`'s outcome control
+  became `LeadPanel`, which edits the lead's stage while reviewing any of
+  its calls.
 
 ---
 
@@ -66,19 +87,23 @@ established — same math, one and two levels up.
 
 ## Phase C — CRM-grade lead & conversion metrics
 
+**Status: C1 done (2026-08-08), reconciled directly into the rollup rather
+than left as a parallel number (that covers what C7 asked for too — see
+below). C2–C6 still open.**
+
 This is where "conversion suitable for CRM" actually gets built — the
-current agent-performance conversion numbers are a call-level proxy
+old agent-performance conversion numbers were a call-level proxy
 (`won-tagged calls / calls analyzed`), not a real lead funnel.
 
-| # | Line item | Why | Size |
-|---|---|---|---|
-| C1 | **Lead-level conversion rate**: distinct leads reaching WON ÷ distinct leads created (or qualified) in period | The doc-correct definition. Today's number can overcount or undercount depending on how many calls a lead took. | S (after Phase A) |
-| C2 | **Call-level conversion context**: calls-per-lead distribution, avg calls-to-close, avg days-to-close | "How many touches does it take" — a real sales-ops question this repo can't currently answer at all. | M |
+| # | Line item | Why | Size | Status |
+|---|---|---|---|---|
+| C1 | **Lead-level conversion rate**: distinct leads reaching WON ÷ distinct leads touched in period | The doc-correct definition. The old number could overcount or undercount depending on how many calls a lead took. | S (after Phase A) | **Done** — with a real correctness property tests actually check: a lead currently *sitting* at "won" only counts toward `conversion_rate_pct` if its `stage_history` shows it *transitioning* to won inside the queried period, not merely being won by the time someone looks. A lead that converted in June doesn't retroactively inflate August's number. |
+| C2 | **Call-level conversion context**: calls-per-lead distribution, avg calls-to-close, avg days-to-close | "How many touches does it take" — a real sales-ops question this repo can't currently answer at all. | M | Open |
 | C3 | Lost-reason taxonomy on `Lead` (not free text) + lost-reason breakdown in reports | Doc section 17 ("reasons customers reject the product") — currently nothing captures *why* a lead was lost. | S |
 | C4 | Lead source/channel field + conversion-by-source breakdown | Needed to answer "which lead source converts" — table stakes for a CRM-adjacent tool. | S |
 | C5 | Lead pipeline view (Kanban: untagged → qualified → demo → proposal → won/lost) | Replaces the current single-call dropdown outcome form with something that reads like a CRM, not a survey field. | L |
 | C6 | Lead detail page: full call history + stage-change audit trail + reassignment history | The "one lead, many calls" view — currently there is no way to see a lead's whole story in one place. | M |
-| C7 | Reconcile agent/team/org rollups to consume lead-level conversion (Phase C1), not the call-level outcome tag they use today | Keeps the numbers internally consistent bottom-to-top instead of two different "conversion rate" definitions coexisting. | M |
+| C7 | Reconcile agent/team/org rollups to consume lead-level conversion (Phase C1), not the call-level outcome tag they use today | Keeps the numbers internally consistent bottom-to-top instead of two different "conversion rate" definitions coexisting. | M | **Done as part of C1** — `agent_performance.py`'s `ConversionAgg` and `ClosingAgg` were rewritten together, not layered; `ClosingAgg` deliberately stayed a current-stage *snapshot* (distinct from `ConversionAgg`'s period-scoped transition count) rather than being collapsed into one number, since they answer different questions — see both classes' docstrings in `schemas.py`. |
 
 ---
 
@@ -146,8 +171,12 @@ A ─▶ D (storage/scale, can start once A's schema is drafted)
 B, C, D, E ─▶ F (polish)
 ```
 
-**Recommended first slice:** A1–A5 + C1 (lead entity, roster, lead-level
-conversion) — the smallest change that makes "conversion suitable for CRM"
-literally true, and unblocks everything else. Team/org rollups (B) are the
-next highest-leverage step once that lands, since they're a direct
-extension of code that already exists and works.
+**First slice shipped (2026-08-08):** A1–A5 + C1 (lead entity, roster,
+lead-level conversion) — verified with 42 new/updated backend tests
+(roster storage, lead storage, the rewritten aggregation module, and the
+new roster/lead routers) plus a live browser pass: real teams, agents, and
+leads created through the actual API, calls attributed to them, and the
+Agent Performance dashboard confirmed showing genuinely different
+teammate-only benchmarks for two agents on different teams. **Next up:
+Team & Org rollups (B)** — the direct extension of `agent_performance.py`
+that was deferred specifically so this foundation could land first.

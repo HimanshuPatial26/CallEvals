@@ -28,7 +28,7 @@ export default function AgentPerformancePage() {
     listAgents()
       .then((data) => {
         setAgents(data);
-        if (data.length > 0 && !selectedAgent) setSelectedAgent(data[0].agent_name);
+        if (data.length > 0 && !selectedAgent) setSelectedAgent(data[0].id);
       })
       .catch((err) => setError(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,8 +60,9 @@ export default function AgentPerformancePage() {
           <select value={selectedAgent} onChange={(e) => setSelectedAgent(e.target.value)}>
             {agents.length === 0 && <option value="">No agents yet</option>}
             {agents.map((a) => (
-              <option key={a.agent_name} value={a.agent_name}>
-                {a.agent_name} ({a.calls_analyzed})
+              <option key={a.id} value={a.id}>
+                {a.name}
+                {a.team_name ? ` — ${a.team_name}` : ""} ({a.calls_analyzed})
               </option>
             ))}
           </select>

@@ -6,8 +6,12 @@ const MATRIX_LABELS = {
 };
 
 // Closing/funnel (doc section 11) + conversion/revenue (section 14) + the
-// quality-vs-outcome matrix (section 21) — all downstream of the manually
-// tagged CallOutcome, since there's no CRM integration.
+// quality-vs-outcome matrix (section 21) — all downstream of manually
+// tagged Lead.stage (ROADMAP.md C1), since there's no CRM integration.
+// closing.* are current-stage snapshots of leads touched this period;
+// conversion.conversion_rate_pct is period-scoped (only leads that actually
+// transitioned to won during this period) — the two numbers can legitimately
+// disagree, see the backend docstrings.
 export default function AgentFunnelPanel({ closing, conversion, matrix }) {
   return (
     <div className="call-detail-columns">
@@ -19,28 +23,28 @@ export default function AgentFunnelPanel({ closing, conversion, matrix }) {
             <span className="insights-value">{closing.calls_with_next_step}</span>
           </li>
           <li>
-            <span className="insights-label">Qualified</span>
-            <span className="insights-value">{closing.qualified_calls}</span>
+            <span className="insights-label">Qualified leads</span>
+            <span className="insights-value">{closing.qualified_leads}</span>
           </li>
           <li>
             <span className="insights-label">Demo booked</span>
-            <span className="insights-value">{closing.demo_booked}</span>
+            <span className="insights-value">{closing.demo_booked_leads}</span>
           </li>
           <li>
             <span className="insights-label">Proposal sent</span>
-            <span className="insights-value">{closing.proposals_sent}</span>
+            <span className="insights-value">{closing.proposals_sent_leads}</span>
           </li>
           <li>
-            <span className="insights-label">Won / Lost</span>
+            <span className="insights-label">Won / Lost (current)</span>
             <span className="insights-value">
-              {closing.won} / {closing.lost}
+              {closing.won_leads} / {closing.lost_leads}
             </span>
           </li>
         </ul>
-        {closing.qualified_without_next_step > 0 && (
+        {closing.qualified_leads_without_next_step > 0 && (
           <p className="item-meta">
-            ⚠️ {closing.qualified_without_next_step} of {closing.qualified_calls} qualified calls ended with no logged
-            next step — funnel leakage.
+            ⚠️ {closing.qualified_leads_without_next_step} of {closing.qualified_leads} qualified leads had no call
+            with a logged next step this period — funnel leakage.
           </p>
         )}
       </section>
@@ -49,8 +53,12 @@ export default function AgentFunnelPanel({ closing, conversion, matrix }) {
         <h3>Conversion & revenue</h3>
         <ul className="insights-list">
           <li>
-            <span className="insights-label">Tagged calls</span>
-            <span className="insights-value">{conversion.tagged_calls}</span>
+            <span className="insights-label">Leads touched</span>
+            <span className="insights-value">{conversion.leads_touched}</span>
+          </li>
+          <li>
+            <span className="insights-label">Leads tagged</span>
+            <span className="insights-value">{conversion.leads_tagged}</span>
           </li>
           <li>
             <span className="insights-label">Revenue (AED)</span>
@@ -63,7 +71,7 @@ export default function AgentFunnelPanel({ closing, conversion, matrix }) {
             </span>
           </li>
           <li>
-            <span className="insights-label">Lost rate</span>
+            <span className="insights-label">Lost rate (this period)</span>
             <span className="insights-value">{conversion.lost_rate_pct != null ? `${conversion.lost_rate_pct.toFixed(0)}%` : "—"}</span>
           </li>
         </ul>

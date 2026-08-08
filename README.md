@@ -343,10 +343,13 @@ itself (still gated by the free-tier quota noted above).
 target scenario — 10 teams (Dubai/Abu Dhabi neighborhood names, for
 flavor) x 10 agents each (one manager per team) — with randomly-combined
 first/last names from pools reflecting the PRD's ICP, none referring to a
-real person. IDs are `uuid5`-derived from each name, so it's idempotent —
-safe to re-run after editing the pools without creating duplicates. Demo
-data only; never presented as, or intended to look like, real customer
-data. Run it with:
+real person — plus 4 explicitly-requested real names (Himanshu, Rohan,
+Rajveer, Purab), added unassigned to any team since none was specified,
+kept in a separate `EXTRA_AGENT_NAMES` list so the file is honest about
+which names are synthetic and which aren't. IDs are `uuid5`-derived from
+each name, so it's idempotent — safe to re-run after editing the pools
+without creating duplicates. Demo data only; never presented as, or
+intended to look like, real customer data. Run it with:
 
 ```bash
 cd server && source .venv/bin/activate && python -m scripts.seed_demo_roster

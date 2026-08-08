@@ -13,6 +13,10 @@ Idempotent: every Team/Agent ID is a uuid5 derived from its name, so
 re-running this script updates the same records instead of creating
 duplicates — safe to run again after tweaking the pools.
 
+EXTRA_AGENT_NAMES below is different: those are real names, added on
+explicit request, not generated from the synthetic pools above. Kept
+unassigned to any team (team_id=None) since none was specified.
+
 Usage:
     cd server && python -m scripts.seed_demo_roster
 """
@@ -63,6 +67,10 @@ LAST_NAMES = [
 
 AGENTS_PER_TEAM = 10
 
+# Real names, added on explicit request — not part of the synthetic pool
+# above. Unassigned to a team (none was specified).
+EXTRA_AGENT_NAMES = ["Himanshu", "Rohan", "Rajveer", "Purab"]
+
 
 def _deterministic_id(kind: str, name: str) -> str:
     return str(uuid.uuid5(_NAMESPACE, f"{kind}:{name}"))
@@ -100,6 +108,11 @@ def seed() -> None:
                 Agent(id=agent_id, name=agent_name, team_id=team_id, is_manager=(i == 0), active=True)
             )
             agents_created += 1
+
+    for name in EXTRA_AGENT_NAMES:
+        agent_id = _deterministic_id("agent-extra", name)
+        roster_storage.save_agent(Agent(id=agent_id, name=name, team_id=None, is_manager=False, active=True))
+        agents_created += 1
 
     print(f"Seeded {teams_created} teams and {agents_created} agents (demo data only).")
 

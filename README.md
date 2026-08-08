@@ -12,10 +12,14 @@ two ASR/LLM providers but never attempted extraction; see "What changed" below.
 
 Everything here runs on free tiers — no GCP billing account, no paid API:
 
-- **ASR — `faster-whisper`, self-hosted.** Runs locally on CPU, no API key, no
-  per-minute billing. This is also the engine the PRD's own architecture diagram
-  names and the one it expects to self-host at scale (PRD section 7) — so Phase 0
-  is already on the intended long-term path rather than a throwaway.
+- **ASR — `faster-whisper`, self-hosted, by default.** Runs locally on CPU, no
+  API key, no per-minute billing. This is also the engine the PRD's own
+  architecture diagram names and the one it expects to self-host at scale (PRD
+  section 7) — so Phase 0 is already on the intended long-term path rather than
+  a throwaway. **Deepgram is available as an opt-in alternative** (set
+  `ASR_PROVIDER=deepgram` and `DEEPGRAM_API_KEY` in `.env`) — it gets native
+  multichannel transcription (no local channel-split step) and, closer to the
+  PRD's own per-minute cost assumption in section 7.
 - **Extraction — Gemini Developer API free tier** (ai.google.dev). Structured
   JSON output (F2 summary, F3 next steps, F4 objections), no GCP billing account
   required, unlike Vertex AI or Cloud Speech.
@@ -26,7 +30,22 @@ Everything here runs on free tiers — no GCP billing account, no paid API:
 **Speaker separation** prefers dual-channel (stereo) recordings — trivial channel
 split, perfect separation, no ML — and falls back to labeling everything
 `unknown` for mono audio rather than faking diarization. Real diarization for
-mono calls is an explicit Phase 1 cut, not a silent gap (PRD section 5).
+genuinely mono calls is an explicit Phase 1 cut, not a silent gap (PRD section 5).
+
+**Real-world wrinkle found in testing**: a file can be a 2-channel container
+without the two speakers actually landing on separate channels — a recorder
+that mixes both parties onto one track and leaves the other silent produces
+exactly this. `multichannel=true` can't split audio that was never separated
+in the source, so Deepgram returns real content on only one channel index.
+`deepgram_provider.py` detects this (fewer than 2 channels carry any
+transcript) and falls back to Deepgram's diarization (`speaker` field)
+specifically for that failure case — first diarized speaker to talk is
+labeled the rep, everyone else is labeled the customer. This is a heuristic,
+not a guarantee (wrong if the customer calls in first, or if hold
+music/an IVR segment gets diarized as its own "speaker"), and diarization
+confidence runs noticeably lower than channel-based separation in practice.
+Genuinely mono files (dual_channel=False) are unaffected by this — they still
+stay labeled `unknown`, per the Phase 1 scope cut above.
 
 ## What changed from the original scaffold
 
@@ -48,7 +67,8 @@ review UI instead of a raw JSON dump.
 ```
 server/
   app/
-    asr/            ASRProvider interface + faster-whisper implementation
+    asr/            ASRProvider interface + faster-whisper (default) and
+                     Deepgram (opt-in) implementations, selected via factory.py
     audio/           dual-channel split
     extraction/      ExtractionProvider interface + Gemini implementation
     routers/         FastAPI routes
@@ -111,6 +131,33 @@ conflating the two would muddy which risk actually failed. F1 (transcription
 accuracy) needs its own check against real call audio once real audio exists to
 check it against.
 
+**Real run, against live `gemini-2.5-flash` (6 mock calls):**
+
+| | precision | recall |
+|---|---|---|
+| next steps | 100% | 100% |
+| objections | 75% | 100% |
+
+Meets the PRD's 85% next-step launch gate (section 6) — on this mock set; 6
+calls is too small a sample to treat these percentages as more than
+directional, and this still needs re-running against real brokerage calls
+before anyone trusts it in production.
+
+This wasn't the first run. The first pass came back at 75%/50% (both at 100%
+recall) — the model never missed a real commitment or objection, but it kept
+splitting one real conversational moment into two extracted items (e.g. one
+ground-truth next step, "draft the offer letter and send it tomorrow," came
+back as two separate items — the rep's side and the customer's acknowledgment
+of the same exchange). `EXTRACTION_PROMPT` in `gemini_extractor.py` now
+explicitly instructs the model to merge near-duplicate next
+steps/objections about the same underlying commitment or concern into one
+entry before finalizing its answer. Re-ran against the same 6 calls and same
+model afterward: next-step precision went 75% → 100%, objections 50% → 75%,
+recall held at 100% throughout. The one remaining objection miss ("I'm not
+really looking to move fast on this right now" tagged as a timing objection)
+is the same genuinely-debatable ground-truth call flagged in the first pass,
+not a new model error.
+
 ### Backend tests
 
 ```bash
@@ -123,11 +170,32 @@ they run without network access, an API key, or a downloaded Whisper model.
 
 ## Known limitations / not yet verified
 
-- The full audio pipeline (upload → whisper → extraction) has not been run
-  end-to-end against real recorded audio in this repo — the dev sandbox this was
-  built in doesn't have a working `ffmpeg` install or a Gemini API key. The unit
-  tests cover the pipeline logic, channel-splitting on synthetic WAVs, and the
-  scoring harness's matching logic in isolation; run the eval script yourself
-  with a real key to get the actual precision number.
+- **Neither ASR path has completed a real transcription through this app.** The
+  dev sandbox this was built in blocks both `huggingface.co`
+  (faster-whisper's model download) and `api.deepgram.com` at the
+  network-policy level, so a real upload fails at the ASR step no matter which
+  provider is configured — confirmed by actually trying both, not assumed.
+  Deepgram's real response shape *has* been checked against a live call
+  (outside this sandbox) and matches what `deepgram_provider.py` parses
+  exactly (`results.utterances[].{start,end,channel,transcript}`) — but that
+  test call was mono, so the multichannel `channel: 0 → rep` / `channel: 1 →
+  customer` mapping is still unexercised against a real payload. faster-whisper
+  has no live confirmation at all yet. Do one real dual-channel upload
+  somewhere without the network restriction before trusting F1 fully on
+  either provider.
+- **Gemini extraction is verified live**, not simulated, and iterated on
+  live. Two real bugs surfaced only once a real API key was used, not before:
+  `google-genai==0.6.0` (originally pinned) builds a `$ref`/`$defs`-based JSON
+  schema for nested Pydantic models that Gemini's structured-output API
+  rejects outright — every extraction call failed with a
+  `pydantic.ValidationError` before hitting the network. Upgraded to
+  `google-genai==2.17.0`, which resolves nested models inline instead — and
+  that upgrade itself required bumping `pydantic` from `2.10.5` to `2.13.4`
+  and `pydantic-settings` from `2.7.1` to `2.15.0`, since `google-genai>=2.x`
+  needs `pydantic>=2.12.5`. `test_wire_schema_is_gemini_compatible` guards
+  the schema-compatibility half of this without needing network access.
+  The precision numbers above are from two real runs against
+  `gemini-2.5-flash`, not one — the second after a prompt fix for
+  over-segmentation, with the improvement measured, not assumed.
 - No auth, no multi-tenant storage, no CRM integration — all explicitly Phase 1+
   per the PRD roadmap (section 9).

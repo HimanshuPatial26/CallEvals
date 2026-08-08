@@ -9,9 +9,14 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
 
+    asr_provider: str = "faster_whisper"  # "faster_whisper" | "deepgram"
+
     whisper_model_size: str = "base"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
+
+    deepgram_api_key: str = ""
+    deepgram_model: str = "nova-2"
 
     data_dir: Path = Path("./data")
 

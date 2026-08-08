@@ -26,10 +26,22 @@ brokerage sales manager. Extract exactly three things:
 1. summary: under 150 words. What the customer wants, budget signals, timeline, \
    and current state of the deal.
 2. next_steps: what the rep committed to and by when. Only include commitments \
-   actually stated on the call — do not infer ones that weren't said.
+   actually stated on the call — do not infer ones that weren't said. If the rep \
+   states a commitment and the customer separately acknowledges or restates it \
+   (e.g. rep says "I'll send the offer letter tomorrow", customer says "I'll look \
+   out for it"), that is ONE next step, not two — extract it once, attributed to \
+   whoever owns the action.
 3. objections: only from these three categories: price, timing, competitor. Quote \
    the customer's own words, don't paraphrase. Skip anything that doesn't clearly \
-   fit one of the three categories.
+   fit one of the three categories. If the customer raises the same underlying \
+   concern more than once in the call, even in different words (e.g. restating a \
+   price concern after first mentioning it), that is ONE objection, not two — pick \
+   the clearest quote and extract it once.
+
+Before finalizing, check your own next_steps and objections lists: if two entries \
+describe the same underlying commitment or the same underlying concern, merge them \
+into one. A manager reviewing this expects each real thing that happened on the \
+call to appear exactly once, not fragmented across near-duplicate entries.
 
 For every next step and objection, set source_segment_index to the index of the \
 transcript segment (shown in brackets below) it came from. Use null if you can't \

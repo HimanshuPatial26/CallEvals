@@ -4,15 +4,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile
 
 from app import storage
-from app.asr.faster_whisper_provider import FasterWhisperProvider
+from app.asr.factory import get_asr_provider
 from app.audio.channel_split import is_dual_channel
 from app.extraction.gemini_extractor import GeminiExtractor
 from app.pipeline import process_call
 from app.schemas import CallRecord, ReviewFeedback
 
 router = APIRouter(prefix="/api/calls", tags=["calls"])
-
-_asr = FasterWhisperProvider()
 
 
 def _run_pipeline(call_id: str) -> None:
@@ -21,6 +19,7 @@ def _run_pipeline(call_id: str) -> None:
         return
     audio_path = storage.audio_path_for(record.id, record.filename)
     try:
+        asr = get_asr_provider()
         extractor = GeminiExtractor()
     except RuntimeError as exc:
         record.status = "failed"
@@ -28,7 +27,7 @@ def _run_pipeline(call_id: str) -> None:
         storage.save(record)
         return
 
-    record = process_call(record, audio_path, _asr, extractor)
+    record = process_call(record, audio_path, asr, extractor)
     storage.save(record)
 
 

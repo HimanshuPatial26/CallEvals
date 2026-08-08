@@ -6,7 +6,9 @@ buying intent, coaching notes, and rule-based compliance checks per call (see
 "Analytics expansion" below) — rolled up per agent, per team, and org-wide,
 per period, each level with its own benchmark against its peers (see
 "Agent Performance" and "Team & Organization rollups" below), with leads
-tracked through a Kanban pipeline board (see "Lead pipeline" below).
+tracked through a Kanban pipeline board and CRM-grade metrics — calls-to-
+close, lost reasons, lead source — down to a full per-lead history (see
+"Lead pipeline" and "CRM-grade lead metrics" below).
 Full product spec: [docs/PRD.md](docs/PRD.md).
 
 This repo is the Phase 0 build the PRD calls for (section 9) — prove that
@@ -573,6 +575,111 @@ total updates correctly to the sum of both Won deals, and confirmed the
 agent filter and search both narrow the board — zero console errors.
 Seeded leads removed from `server/data/` afterward.
 
+## CRM-grade lead metrics (2026-08-08) — ROADMAP.md C2, C3, C4, C6
+
+The rest of Phase C, shipped in one pass after C5. Together with C1
+(lead-level conversion, in "Roster & leads" above) and C5 (the Kanban
+board, above), this closes out every Phase C line item.
+
+- **C2 — calls-to-close.** New `CallsToCloseAgg` on the shared
+  `PerformanceMetrics` base (so it's on every agent/team/org report for
+  free): `calls_per_lead_distribution` buckets every distinct lead touched
+  in the period ("1 call", "2 calls", "3-4", "5+"), and
+  `avg_calls_to_close`/`avg_days_to_close` are computed only over leads
+  that transitioned to won *within that period* — counting only calls
+  placed up to and including the day of that transition. A courtesy call
+  placed after the deal already closed does not inflate "how many calls
+  did it take" — confirmed with a test that places a 3rd call after the
+  won date and checks it's excluded from the average.
+- **C3 — lost reasons.** New `LostReason` enum (price / timing /
+  competitor / financing / unresponsive / not_qualified / changed_mind /
+  other) and `Lead.lost_reason`, settable via the existing
+  `POST /api/leads/{id}/stage` (now takes an optional `lost_reason`
+  alongside `deal_size_aed`). `LostReasonAgg`'s breakdown uses
+  current-snapshot semantics, same as `ClosingAgg.lost_leads` — a lead
+  lost without a reason recorded (pre-C3 data, or a manager who skipped
+  the field) is counted in `ClosingAgg.lost_leads` but not in
+  `LostReasonAgg`, by design; see both classes' docstrings.
+- **C4 — lead source.** `Lead.source` already existed as free text, but
+  there was no way to ever set it after a lead's creation — not even via
+  the API. Added `PATCH /api/leads/{id}` (display_name/phone/source) to
+  close that gap, which `lead_storage.get_or_create`'s own docstring had
+  already flagged as missing. `SourceAgg` groups touched leads by their
+  raw source string and reports a conversion rate per source, bucketing
+  untagged leads under `"Unknown"` rather than dropping them — no fixed
+  channel taxonomy is enforced, matching the deliberate choice already
+  documented on the `source` field itself.
+- **C6 — lead detail + reassignment history.** Call history and the
+  stage-change audit trail already existed in the API (`LeadDetail.calls`,
+  `Lead.stage_history`) — they just had no page. Reassignment history did
+  not exist *at all*: there was no way to change a lead's
+  `assigned_agent_id` after creation, full stop. New `AssignmentEvent`
+  schema, `Lead.assignment_history` (append-only, same pattern as
+  `stage_history`), `lead_storage.reassign()`, and
+  `POST /api/leads/{id}/reassign` close that gap. The new
+  `LeadDetailModal` surfaces all three — stage history, assignment
+  history, call history — plus a reassign control, reached via a
+  dedicated "view details" (ⓘ) button on each Kanban card rather than the
+  card itself, since the card is also a drag handle and click-after-drag
+  is inconsistent across browsers.
+
+**Frontend.** `LeadPanel` (the in-context stage editor on `CallDetail`)
+gained a `lost_reason` dropdown that appears when stage is set to Lost
+(mirroring the existing `deal_size_aed`-when-Won pattern) and a `source`
+field with a `<datalist>` of common suggestions (Website, Referral,
+Walk-in, Portal, Social media, Cold call) plus free text. The Kanban board
+gained a matching skippable lost-reason modal on dropping (or
+arrow-moving) a card into Lost, same shape as C5's Won deal-size modal,
+and the reason now shows on the card. A new `AgentPipelineInsightsPanel`
+(calls-to-close distribution, lost-reason breakdown, lead-source
+breakdown) is wired into both the Agent Performance page and the
+Organization page, next to the existing funnel/conversion panel — free at
+every rollup level since it reads fields already on `PerformanceMetrics`.
+
+**Verification.** 16 new backend tests across `test_performance_metrics.py`
+(the post-close-call exclusion above, lost-reasons only counting leads
+with a reason recorded, source grouping including the Unknown bucket),
+`test_lead_storage.py` (`lost_reason` persists without being cleared by a
+later stage change with no reason of its own; `reassign` appends to
+`assignment_history`), and `test_leads_router.py` (the `/stage` endpoint's
+new `lost_reason` field, the new `/reassign` endpoint including rejecting
+an unknown agent, and the new `PATCH /{lead_id}` including rejecting a
+blank display name) — 158 backend tests passing overall. Then a live pass:
+four leads seeded directly against `storage`/`lead_storage` covering a won
+lead with a post-close courtesy call, a lost lead with a reason, and two
+different sources (one lead with none, to exercise the Unknown bucket),
+driven through the real running frontend with Playwright — the three new
+Agent Performance panels confirmed rendering correct numbers, a drag into
+Lost confirmed opening the reason modal and showing the reason on the card
+afterward, the detail modal confirmed showing stage/call history and a
+live reassignment appearing immediately in assignment history, and
+`LeadPanel`'s new lost-reason/source fields confirmed saving correctly
+from the Calls tab.
+
+Two real issues were caught and fixed during this pass, neither of which
+any backend test could have caught:
+
+1. **Not a product bug — a test-viewport issue.** The first drag-into-Lost
+   attempt appeared to silently do nothing (no modal, lead stayed put).
+   The Kanban board had grown to 6 columns plus more leads than C5's
+   original verification pass; at the default Playwright viewport width,
+   the Lost column was outside the horizontal scroll area, and the
+   simulated drag didn't reliably complete against an off-screen target.
+   Widening the test viewport (not the app) resolved it and confirmed the
+   underlying drag logic was correct the whole time.
+2. **A real CSS bug in `LeadDetailModal`.** Its two history columns used
+   plain `<section>` elements instead of `<section className="panel">`,
+   so they never picked up the `.call-detail-columns .panel { flex: 1 }`
+   rule everywhere else in the app relies on — `.insights-list` rows
+   collapsed to content width, so labels ran directly into their
+   timestamps ("Won8/8/2026, 7:58:53 PM") with no visible gap. Fixed with
+   a scoped `.lead-detail-modal .call-detail-columns > section` rule
+   rather than adding the `.panel` class outright, since nesting another
+   bordered card inside the modal (itself already a `.panel`) would have
+   looked doubled-up.
+
+Seeded leads/calls removed from `server/data/` afterward.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes
@@ -627,11 +734,13 @@ frontend/
                       CoachingPanel, ComplianceChecklist, LeadPanel,
                       AgentPerformancePage + AgentOverviewPanel,
                       AgentScoreBreakdownPanel, AgentBehaviorPanel,
-                      AgentFunnelPanel, AgentSentimentIntentPanel,
+                      AgentFunnelPanel, AgentPipelineInsightsPanel,
+                      AgentSentimentIntentPanel,
                       AgentQualityTrendPanel, AgentCoachingPanel,
                       OrganizationPage (team+org rollups, drill-down),
                       LeaderboardPanel,
-                      LeadPipelinePage (Kanban board), LeadCard
+                      LeadPipelinePage (Kanban board), LeadCard,
+                      LeadDetailModal (C6: history + reassign)
     api/client.js
 docs/
   PRD.md
@@ -796,7 +905,24 @@ through the actual app (not raw curl):
   drill-down UI and the pooling/benchmark/leaderboard logic are correct,
   but not enough to say anything about dashboard load time at real call
   volume — that's Phase D's (storage/scale) job, not this pass's.
-- No auth, no multi-tenant storage, no CRM integration beyond the manual
-  lead-stage tagging described in "Roster & leads" above — all explicitly
-  Phase 1+ per the PRD roadmap (section 9). No dedup-by-phone-number on
-  Lead creation either — see that section for the gap.
+- **The new C2/C3/C4/C6 breakdowns are only as good as what a manager
+  actually records, and every reason/source field is skippable by
+  design.** `LostReasonAgg`/`SourceAgg` are computed over whatever subset
+  of leads happen to have a reason or source recorded — a team that never
+  fills in lost reasons will show an empty "Lost reasons" panel forever,
+  correctly (it's not a bug, it's the panel being honest about missing
+  data), but it also means these breakdowns can quietly stay useless in
+  practice if no one is disciplined about filling in the modals. No UI
+  nudge or required-field enforcement exists to prevent that.
+- **No auth at all, and Phase C made that gap sharper, not just
+  unchanged.** The new `POST /api/leads/{id}/reassign` and
+  `PATCH /api/leads/{id}` endpoints mean any caller can now reassign any
+  lead to any agent or rewrite its name/phone/source with zero scoping —
+  previously the closest thing was creating a lead in the first place.
+  This is explicitly Phase E's job (access control), not fixed here; it's
+  a real reason to prioritize E sooner rather than later now that Phase C
+  is fully built. No multi-tenant storage, no CRM integration beyond the
+  manual lead-stage tagging described in "Roster & leads" above — all
+  explicitly Phase 1+ per the PRD roadmap (section 9). No
+  dedup-by-phone-number on Lead creation either — see that section for
+  the gap.

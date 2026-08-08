@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listAgents, listLeads, setLeadStage } from "../api/client";
 import LeadCard from "./LeadCard";
+import LeadDetailModal from "./LeadDetailModal";
 
 // ROADMAP.md C5 — the funnel as a board, not a per-call dropdown. Stage
 // order here drives both column layout and the prev/next arrow buttons on
@@ -16,6 +17,17 @@ const STAGES = [
   ["lost", "Lost"],
 ];
 
+const LOST_REASONS = [
+  ["price", "Price"],
+  ["timing", "Timing"],
+  ["competitor", "Competitor"],
+  ["financing", "Financing fell through"],
+  ["unresponsive", "Went unresponsive"],
+  ["not_qualified", "Not qualified"],
+  ["changed_mind", "Changed mind"],
+  ["other", "Other"],
+];
+
 export default function LeadPipelinePage() {
   const [leads, setLeads] = useState([]);
   const [agents, setAgents] = useState([]);
@@ -27,6 +39,9 @@ export default function LeadPipelinePage() {
   const [movingLeadId, setMovingLeadId] = useState(null);
   const [wonPrompt, setWonPrompt] = useState(null); // { lead, targetStage }
   const [wonDealSize, setWonDealSize] = useState("");
+  const [lostPrompt, setLostPrompt] = useState(null); // { lead, targetStage }
+  const [lostReasonChoice, setLostReasonChoice] = useState("");
+  const [detailLeadId, setDetailLeadId] = useState(null);
 
   useEffect(() => {
     listAgents()
@@ -59,11 +74,11 @@ export default function LeadPipelinePage() {
     [leads]
   );
 
-  async function commitMove(lead, targetStage, dealSizeAed) {
+  async function commitMove(lead, targetStage, dealSizeAed, lostReason) {
     setMovingLeadId(lead.id);
     setError(null);
     try {
-      const updated = await setLeadStage(lead.id, targetStage, dealSizeAed);
+      const updated = await setLeadStage(lead.id, targetStage, dealSizeAed, lostReason);
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? updated : l)));
     } catch (err) {
       setError(err.message);
@@ -79,13 +94,24 @@ export default function LeadPipelinePage() {
       setWonPrompt({ lead, targetStage });
       return;
     }
-    commitMove(lead, targetStage, null);
+    if (targetStage === "lost" && lead.lost_reason == null) {
+      setLostReasonChoice("");
+      setLostPrompt({ lead, targetStage });
+      return;
+    }
+    commitMove(lead, targetStage, null, null);
   }
 
   function confirmWonPrompt(dealSizeAed) {
     const { lead, targetStage } = wonPrompt;
     setWonPrompt(null);
-    commitMove(lead, targetStage, dealSizeAed);
+    commitMove(lead, targetStage, dealSizeAed, null);
+  }
+
+  function confirmLostPrompt(reason) {
+    const { lead, targetStage } = lostPrompt;
+    setLostPrompt(null);
+    commitMove(lead, targetStage, null, reason);
   }
 
   function handleDragStart(e, lead) {
@@ -160,6 +186,7 @@ export default function LeadPipelinePage() {
                         onMoveNext={(l) => moveLead(l, STAGES[index + 1][0])}
                         canMovePrev={index > 0}
                         canMoveNext={index < STAGES.length - 1}
+                        onViewDetails={(l) => setDetailLeadId(l.id)}
                         busy={movingLeadId === lead.id}
                       />
                     );
@@ -195,6 +222,44 @@ export default function LeadPipelinePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {lostPrompt && (
+        <div className="modal-overlay" onClick={() => setLostPrompt(null)}>
+          <div className="modal panel" onClick={(e) => e.stopPropagation()}>
+            <h3>Mark "{lostPrompt.lead.display_name}" as Lost</h3>
+            <label className="outcome-field">
+              Lost reason
+              <select autoFocus value={lostReasonChoice} onChange={(e) => setLostReasonChoice(e.target.value)}>
+                <option value="">Not recorded</option>
+                {LOST_REASONS.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="modal-actions">
+              <button type="button" onClick={() => confirmLostPrompt(null)}>
+                Skip
+              </button>
+              <button type="button" onClick={() => confirmLostPrompt(lostReasonChoice === "" ? null : lostReasonChoice)}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailLeadId && (
+        <LeadDetailModal
+          leadId={detailLeadId}
+          agents={agents}
+          onClose={() => {
+            setDetailLeadId(null);
+            loadLeads(); // a reassignment in the modal can change what the board shows under the current agent filter
+          }}
+        />
       )}
     </div>
   );

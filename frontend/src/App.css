@@ -786,3 +786,25 @@ body {
   justify-content: flex-end;
   margin-top: 0.75rem;
 }
+
+.lead-detail-modal {
+  max-height: 85vh;
+  max-width: 640px;
+  overflow-y: auto;
+  width: 90%;
+}
+
+.lead-detail-modal .call-detail-columns > section {
+  flex: 1;
+  min-width: 0;
+}
+
+.lead-detail-header {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+}
+
+.lead-card-details {
+  margin-left: auto;
+}

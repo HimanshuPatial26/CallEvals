@@ -4,6 +4,7 @@ import AgentOverviewPanel from "./AgentOverviewPanel";
 import AgentScoreBreakdownPanel from "./AgentScoreBreakdownPanel";
 import AgentBehaviorPanel from "./AgentBehaviorPanel";
 import AgentFunnelPanel from "./AgentFunnelPanel";
+import AgentPipelineInsightsPanel from "./AgentPipelineInsightsPanel";
 import AgentSentimentIntentPanel from "./AgentSentimentIntentPanel";
 import AgentQualityTrendPanel from "./AgentQualityTrendPanel";
 import AgentCoachingPanel from "./AgentCoachingPanel";
@@ -93,6 +94,11 @@ export default function AgentPerformancePage({ initialAgentId }) {
           <AgentScoreBreakdownPanel breakdown={report.score_breakdown} />
           <AgentBehaviorPanel talkTime={report.talk_time} discoveryAvgScore={report.discovery_avg_score} objections={report.objections} />
           <AgentFunnelPanel closing={report.closing} conversion={report.conversion} matrix={report.quality_outcome_matrix} />
+          <AgentPipelineInsightsPanel
+            callsToClose={report.calls_to_close}
+            lostReasons={report.lost_reasons}
+            sourceBreakdown={report.source_breakdown}
+          />
           <AgentSentimentIntentPanel sentiment={report.sentiment} conversion={report.conversion} />
           <AgentQualityTrendPanel
             distribution={report.quality_distribution}

@@ -66,10 +66,26 @@ export function listLeads({ assignedAgentId, stage, q } = {}) {
   return request(`/api/leads${qs ? `?${qs}` : ""}`);
 }
 
-export function setLeadStage(leadId, stage, dealSizeAed) {
+export function setLeadStage(leadId, stage, dealSizeAed, lostReason) {
   return request(`/api/leads/${leadId}/stage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ stage, deal_size_aed: dealSizeAed }),
+    body: JSON.stringify({ stage, deal_size_aed: dealSizeAed, lost_reason: lostReason || null }),
+  });
+}
+
+export function updateLead(leadId, updates) {
+  return request(`/api/leads/${leadId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+}
+
+export function reassignLead(leadId, assignedAgentId, changedBy) {
+  return request(`/api/leads/${leadId}/reassign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ assigned_agent_id: assignedAgentId, changed_by: changedBy }),
   });
 }

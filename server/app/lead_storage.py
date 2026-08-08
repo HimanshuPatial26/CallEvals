@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import settings
-from app.schemas import FunnelStage, Lead, LeadStageEvent
+from app.schemas import AssignmentEvent, FunnelStage, Lead, LeadStageEvent, LostReason
 
 _LEADS_DIR = settings.data_dir / "leads"
 _LEADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -56,13 +56,37 @@ def get_or_create(lead_id: str, assigned_agent_id: str | None) -> Lead:
     return lead
 
 
-def set_stage(lead_id: str, stage: FunnelStage, deal_size_aed: float | None, changed_by: str | None) -> Lead | None:
+def set_stage(
+    lead_id: str,
+    stage: FunnelStage,
+    deal_size_aed: float | None,
+    changed_by: str | None,
+    lost_reason: LostReason | None = None,
+) -> Lead | None:
     lead = load(lead_id)
     if lead is None:
         return None
     lead.stage = stage
     if deal_size_aed is not None:
         lead.deal_size_aed = deal_size_aed
+    if lost_reason is not None:
+        lead.lost_reason = lost_reason
     lead.stage_history.append(LeadStageEvent(stage=stage, changed_at=datetime.now(timezone.utc), changed_by=changed_by))
+    save(lead)
+    return lead
+
+
+def reassign(lead_id: str, assigned_agent_id: str | None, changed_by: str | None) -> Lead | None:
+    """Writes the lead's current assignee and appends to assignment_history
+    (ROADMAP.md C6) — same append-only audit-trail pattern as set_stage's
+    stage_history, for the same reason: reports need to know *when* a lead
+    was reassigned, not just who currently owns it."""
+    lead = load(lead_id)
+    if lead is None:
+        return None
+    lead.assigned_agent_id = assigned_agent_id
+    lead.assignment_history.append(
+        AssignmentEvent(assigned_agent_id=assigned_agent_id, changed_at=datetime.now(timezone.utc), changed_by=changed_by)
+    )
     save(lead)
     return lead

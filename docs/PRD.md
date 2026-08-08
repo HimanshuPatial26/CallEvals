@@ -225,16 +225,20 @@ above (0–3) don't have enough resolution for "what needs to be built, in
 what order, to go from today's agent-level rollup to a real org-wide
 product with lead attribution and CRM-grade conversion." That's a separate,
 detailed line-item roadmap: [docs/ROADMAP.md](ROADMAP.md). **Update
-(2026-08-08): its Phase A (roster + lead identity), C1 (lead-level
-conversion), and Phase B (Team/Organization rollups) have since shipped**
-— calls are now attributed to a real `agent_id`/`lead_id` rather than a
-free-text name, conversion is measured against the lead's stage history
-rather than a tag on one call, and the CALL → AGENT → TEAM → ORGANIZATION
-hierarchy is fully real and navigable: an Organization tab rolls up all 10
-teams, drills into any team's agent leaderboard, and hands off to the
-per-agent dashboard from there. Phase C's remaining line items (C2–C6:
-call-level conversion context, lost-reason taxonomy, lead source/channel,
-a real pipeline view, and a lead detail page) are next.
+(2026-08-08): Phase A, Phase B, and all of Phase C have since shipped** —
+calls are now attributed to a real `agent_id`/`lead_id` rather than a
+free-text name, the CALL → AGENT → TEAM → ORGANIZATION hierarchy is fully
+real and navigable (an Organization tab rolls up all 10 teams, drills into
+any team's agent leaderboard, and hands off to the per-agent dashboard
+from there), and lead conversion is now genuinely CRM-grade: lead-level
+conversion measured against stage history rather than a tag on one call,
+calls-to-close and days-to-close, lost-reason and lead-source breakdowns,
+a Kanban pipeline board, and a per-lead detail view with full stage and
+reassignment history. Next up per the roadmap: Phase D (Postgres — the
+filesystem-JSON storage doesn't hold up at real 100-agent call volume) or
+Phase E (access control — there is still no auth at all, and Phase C's new
+reassignment/lead-editing endpoints make that gap more pointed than
+before).
 
 ---
 

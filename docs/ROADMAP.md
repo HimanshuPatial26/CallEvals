@@ -7,13 +7,17 @@ call level and lead level, in a shape a real CRM would recognize.
 **Where this repo actually is today, honestly (updated 2026-08-08):** a
 working Phase 0 pipeline (F1–F4 + score/sentiment/objections/compliance/
 coaching per call), a real roster (Team/Agent) and Lead entity (Phase A),
-lead-level conversion (C1), and now Team and Organization rollups (Phase
-B) on top of the same aggregation engine the Agent layer already used.
-CALL, AGENT, TEAM, and ORGANIZATION are all real, navigable levels now —
-Organization → Team → Agent is one tab with click-to-drill-down rows, and
-Agent → Call was already there. Nothing here is "finished" at 100-agent
-scale yet (see Phase D for the storage/scale gap); this document is the
-gap, broken into shippable phases.
+Team and Organization rollups (Phase B) on top of the same aggregation
+engine the Agent layer already used, and all of Phase C's CRM-grade lead
+metrics: lead-level conversion, calls-to-close, lost-reason and
+lead-source breakdowns, a Kanban pipeline board, and a lead detail view
+with full stage/reassignment history. CALL, AGENT, TEAM, and ORGANIZATION
+are all real, navigable levels now — Organization → Team → Agent is one
+tab with click-to-drill-down rows, and Agent → Call was already there.
+Nothing here is "finished" at 100-agent scale yet — there's still no auth
+(Phase E) and storage is still filesystem JSON with a full-directory scan
+per request (Phase D); this document is the gap, broken into shippable
+phases.
 
 ---
 
@@ -123,9 +127,9 @@ just checking the API responses.
 
 ## Phase C — CRM-grade lead & conversion metrics
 
-**Status: C1 and C5 done (2026-08-08). C1 was reconciled directly into the
-rollup rather than left as a parallel number (that covers what C7 asked for
-too — see below). C2–C4 and C6 still open.**
+**Status: all of Phase C done (2026-08-08).** C1 was reconciled directly into
+the rollup rather than left as a parallel number (that covers what C7 asked
+for too — see below).
 
 This is where "conversion suitable for CRM" actually gets built — the
 old agent-performance conversion numbers were a call-level proxy
@@ -134,11 +138,11 @@ old agent-performance conversion numbers were a call-level proxy
 | # | Line item | Why | Size | Status |
 |---|---|---|---|---|
 | C1 | **Lead-level conversion rate**: distinct leads reaching WON ÷ distinct leads touched in period | The doc-correct definition. The old number could overcount or undercount depending on how many calls a lead took. | S (after Phase A) | **Done** — with a real correctness property tests actually check: a lead currently *sitting* at "won" only counts toward `conversion_rate_pct` if its `stage_history` shows it *transitioning* to won inside the queried period, not merely being won by the time someone looks. A lead that converted in June doesn't retroactively inflate August's number. |
-| C2 | **Call-level conversion context**: calls-per-lead distribution, avg calls-to-close, avg days-to-close | "How many touches does it take" — a real sales-ops question this repo can't currently answer at all. | M | Open |
-| C3 | Lost-reason taxonomy on `Lead` (not free text) + lost-reason breakdown in reports | Doc section 17 ("reasons customers reject the product") — currently nothing captures *why* a lead was lost. | S |
-| C4 | Lead source/channel field + conversion-by-source breakdown | Needed to answer "which lead source converts" — table stakes for a CRM-adjacent tool. | S |
+| C2 | **Call-level conversion context**: calls-per-lead distribution, avg calls-to-close, avg days-to-close | "How many touches does it take" — a real sales-ops question this repo can't currently answer at all. | M | **Done** — `CallsToCloseAgg` in the shared rollup engine. `calls_per_lead_distribution` buckets *every* distinct lead touched in the period (not just won ones); `avg_calls_to_close`/`avg_days_to_close` are computed only over leads that transitioned to won *within the period* (same period-scoped rule as C1's conversion rate), counting only calls placed up to and including the won date — a courtesy call after the deal already closed doesn't inflate "how many calls did it take." |
+| C3 | Lost-reason taxonomy on `Lead` (not free text) + lost-reason breakdown in reports | Doc section 17 ("reasons customers reject the product") — currently nothing captures *why* a lead was lost. | S | **Done** — new `LostReason` enum (price/timing/competitor/financing/unresponsive/not_qualified/changed_mind/other), `Lead.lost_reason`, settable via `POST /api/leads/{id}/stage`. `LostReasonAgg` breakdown uses current-snapshot semantics like `ClosingAgg.lost_leads` (not period-scoped) — a lead lost without a reason recorded is counted in `ClosingAgg.lost_leads` but not in `LostReasonAgg`, by design (see its docstring). |
+| C4 | Lead source/channel field + conversion-by-source breakdown | Needed to answer "which lead source converts" — table stakes for a CRM-adjacent tool. | S | **Done** — `Lead.source` already existed as free text but had no UI to ever set it after creation; added `PATCH /api/leads/{id}` (display_name/phone/source) to close that gap, anticipated by `get_or_create`'s own docstring. `SourceAgg` groups touched leads by their raw source string, bucketing untagged leads under "Unknown" rather than dropping them — no fixed taxonomy enforced. |
 | C5 | Lead pipeline view (Kanban: untagged → qualified → demo → proposal → won/lost) | Replaces the current single-call dropdown outcome form with something that reads like a CRM, not a survey field. | L | **Done** — required no backend changes at all: `GET /api/leads` (with `assigned_agent_id`/`stage`/`q` filters) and `POST /api/leads/{id}/stage` already covered everything the board needs, since the backend places no restriction on which stage a lead can move to from which. New `LeadPipelinePage`/`LeadCard` components: drag-and-drop between columns as the primary interaction, plus prev/next arrow buttons on every card as a keyboard/touch-accessible fallback that writes through the same code path, not a separate one. Dropping (or arrow-moving) a lead into Won without an existing deal size opens a small inline modal to capture it (skippable) rather than silently leaving revenue unset. |
-| C6 | Lead detail page: full call history + stage-change audit trail + reassignment history | The "one lead, many calls" view — currently there is no way to see a lead's whole story in one place. | M |
+| C6 | Lead detail page: full call history + stage-change audit trail + reassignment history | The "one lead, many calls" view — currently there is no way to see a lead's whole story in one place. | M | **Done** — call history and stage-change audit trail already existed in the API (`LeadDetail.calls`, `Lead.stage_history`), just never surfaced; reassignment history did not exist at all, so it's genuinely new: `AssignmentEvent` schema, `Lead.assignment_history`, `lead_storage.reassign()` (append-only, same pattern as `set_stage`/`stage_history`), and a new `POST /api/leads/{id}/reassign` endpoint — there was previously no way to change a lead's `assigned_agent_id` after creation at all. New `LeadDetailModal`, reached via a dedicated "view details" button on each Kanban card (not the card itself, since the card is also a drag handle and click-after-drag is unreliable across browsers). |
 | C7 | Reconcile agent/team/org rollups to consume lead-level conversion (Phase C1), not the call-level outcome tag they use today | Keeps the numbers internally consistent bottom-to-top instead of two different "conversion rate" definitions coexisting. | M | **Done as part of C1** — `agent_performance.py`'s `ConversionAgg` and `ClosingAgg` were rewritten together, not layered; `ClosingAgg` deliberately stayed a current-stage *snapshot* (distinct from `ConversionAgg`'s period-scoped transition count) rather than being collapsed into one number, since they answer different questions — see both classes' docstrings in `schemas.py`. |
 
 **C5 verification.** No new backend tests needed — `GET /api/leads` and
@@ -154,6 +158,47 @@ total updated correctly to the sum of both Won deals), and confirmed the
 agent filter and name/phone search both narrow the board correctly — zero
 console errors throughout. Seeded leads cleaned out of `server/data/`
 afterward, same discipline as every other live pass in this document.
+
+**C2/C3/C4/C6 verification.** New backend tests across
+`test_performance_metrics.py` (calls-to-close excludes post-close calls and
+computes days-to-close from `Lead.created_at` not the first call;
+lost-reasons only counts leads with a reason recorded; source breakdown
+groups correctly and buckets missing sources as "Unknown"),
+`test_lead_storage.py` (lost_reason persists without clearing on a later
+stage change; reassign appends to `assignment_history`), and
+`test_leads_router.py` (the new `/stage` `lost_reason` field, the new
+`/reassign` endpoint including unknown-agent rejection, and the new
+`PATCH /{lead_id}` endpoint including blank-name rejection) — 16 new tests,
+158 passing overall. Then a live pass against the real seeded roster: four
+leads created directly against `storage`/`lead_storage` (one won after two
+calls with the second call placed after the won date, to exercise the
+post-close-call exclusion; one lost with a reason; two with different
+sources, one with none), driven through the real running frontend with
+Playwright — confirmed the three new panels (Calls to close, Lost reasons,
+Lead source) render correct numbers on the Agent Performance page,
+confirmed dragging a card into Lost opens the same skippable-modal pattern
+as Won and the reason shows on the card afterward, opened a lead's detail
+modal and confirmed stage history / call history / a live reassignment
+(with the resulting entry immediately visible in assignment history), and
+edited a lead's stage/lost-reason/source through `LeadPanel` on the Calls
+tab. Two real issues caught and fixed during this pass, neither of which
+any backend test could have caught:
+
+1. A drag-and-drop verification false negative — not a product bug — where
+   Playwright's `dragTo` didn't reliably complete when the target column
+   was outside the default viewport's horizontal scroll; widening the test
+   viewport (not the app) resolved it and confirmed the drag logic itself
+   was correct all along.
+2. A real CSS bug: `LeadDetailModal`'s two history columns used bare
+   `<section>` elements instead of `<section className="panel">`, so they
+   never picked up `.call-detail-columns .panel { flex: 1 }` — the
+   `insights-list` rows collapsed to content-width, leaving stage/agent
+   labels running directly into their timestamps with no visible gap.
+   Fixed with a scoped `.lead-detail-modal .call-detail-columns > section`
+   rule rather than adding the `.panel` class, since nesting a bordered
+   card inside the already-bordered modal would have looked doubled-up.
+
+Seeded calls/leads cleaned out of `server/data/` afterward.
 
 ---
 
@@ -237,7 +282,15 @@ verification writeup.
 **Third slice shipped (2026-08-08):** C5 (Kanban lead pipeline), taken out
 of its originally-suggested order (after C2–C4/C6) at explicit request,
 since it's the most visibly CRM-like piece and needed zero backend changes
-to build. See the Phase C section above for the full verification writeup.
-**Next up: C2, C3, C4, C6** (call-level conversion context, lost-reason
-taxonomy, lead source/channel, and the lead detail page) — the remaining
-Phase C line items, none of which block each other or C5.
+to build.
+
+**Fourth slice shipped (2026-08-08): the rest of Phase C (C2, C3, C4, C6)**
+in one pass, closing out Phase C entirely. See the Phase C section above
+for the full line items and verification writeup. **Phase A, B, and C are
+now all done.** Next up, per the original sequencing: **Phase D**
+(Postgres migration — the current filesystem-JSON-with-full-scan storage
+is the biggest real gap between this build and actually running at
+100-agent volume) or **Phase E** (access control — there is currently no
+auth at all, and Phase C's reassignment/lead-editing endpoints make that
+gap more pointed, not less, since any caller can now reassign any lead to
+any agent with zero scoping).

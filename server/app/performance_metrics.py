@@ -38,6 +38,8 @@ from app.schemas import (
     AgentScoreBreakdown,
     BenchmarkRow,
     CallRecord,
+    CallVolumeBucket,
+    CallsToCloseAgg,
     ClosingAgg,
     CoachingRecommendation,
     ConversionAgg,
@@ -45,6 +47,8 @@ from app.schemas import (
     IntentDistribution,
     IntentLevel,
     Lead,
+    LostReasonAgg,
+    LostReasonBreakdownRow,
     ObjectionAgg,
     ObjectionCategoryAgg,
     PerformanceMetrics,
@@ -53,6 +57,8 @@ from app.schemas import (
     ScoreDimensionAgg,
     SentimentAgg,
     SentimentLabel,
+    SourceAgg,
+    SourceBreakdownRow,
     StrengthWeakness,
     TalkTimeAgg,
     TrendPoint,
@@ -320,6 +326,88 @@ def _conversion(
     )
 
 
+_CALLS_TO_CLOSE_BUCKETS = [(1, 1, "1"), (2, 2, "2"), (3, 4, "3-4"), (5, float("inf"), "5+")]
+
+
+def _calls_to_close(
+    records: list[CallRecord], leads_by_id: dict[str, Lead], period_start: date, period_end: date
+) -> CallsToCloseAgg:
+    touched_leads = distinct_leads(records, leads_by_id)
+    calls_by_lead: dict[str, list[CallRecord]] = {}
+    for r in records:
+        calls_by_lead.setdefault(r.lead_id, []).append(r)
+
+    counts = [len(calls_by_lead.get(lead.id, [])) for lead in touched_leads]
+    buckets = []
+    if counts:
+        for low, high, label in _CALLS_TO_CLOSE_BUCKETS:
+            bucket_count = sum(1 for c in counts if low <= c <= high)
+            buckets.append(CallVolumeBucket(range_label=label, count=bucket_count, pct=round(bucket_count / len(counts) * 100.0, 1)))
+
+    won_in_period = [lead for lead in touched_leads if reached_stage_in_period(lead, FunnelStage.WON, period_start, period_end)]
+    calls_counts = []
+    days_counts = []
+    for lead in won_in_period:
+        won_event = next(
+            (e for e in lead.stage_history if e.stage == FunnelStage.WON and period_start <= e.changed_at.date() <= period_end),
+            None,
+        )
+        if won_event is None:
+            continue
+        won_date = won_event.changed_at.date()
+        calls_up_to_close = [r for r in calls_by_lead.get(lead.id, []) if r.created_at.date() <= won_date]
+        calls_counts.append(len(calls_up_to_close))
+        days_counts.append((won_date - lead.created_at.date()).days)
+
+    return CallsToCloseAgg(
+        calls_per_lead_distribution=buckets,
+        avg_calls_to_close=round(statistics.fmean(calls_counts), 1) if calls_counts else None,
+        avg_days_to_close=round(statistics.fmean(days_counts), 1) if days_counts else None,
+        won_leads_measured=len(calls_counts),
+    )
+
+
+def _lost_reasons(records: list[CallRecord], leads_by_id: dict[str, Lead]) -> LostReasonAgg:
+    touched_leads = distinct_leads(records, leads_by_id)
+    lost_with_reason = [lead for lead in touched_leads if lead.stage == FunnelStage.LOST and lead.lost_reason is not None]
+    if not lost_with_reason:
+        return LostReasonAgg(total_lost_with_reason=0, by_reason=[])
+
+    counts: dict = {}
+    for lead in lost_with_reason:
+        counts[lead.lost_reason] = counts.get(lead.lost_reason, 0) + 1
+
+    rows = [
+        LostReasonBreakdownRow(reason=reason, count=count, pct=round(count / len(lost_with_reason) * 100.0, 1))
+        for reason, count in counts.items()
+    ]
+    rows.sort(key=lambda row: row.count, reverse=True)
+    return LostReasonAgg(total_lost_with_reason=len(lost_with_reason), by_reason=rows)
+
+
+def _source_breakdown(
+    records: list[CallRecord], leads_by_id: dict[str, Lead], period_start: date, period_end: date
+) -> SourceAgg:
+    touched_leads = distinct_leads(records, leads_by_id)
+    if not touched_leads:
+        return SourceAgg(by_source=[])
+
+    by_source: dict[str, list[Lead]] = {}
+    for lead in touched_leads:
+        by_source.setdefault(lead.source or "Unknown", []).append(lead)
+
+    rows = []
+    for source, leads in by_source.items():
+        won = sum(1 for lead in leads if reached_stage_in_period(lead, FunnelStage.WON, period_start, period_end))
+        rows.append(
+            SourceBreakdownRow(
+                source=source, leads_touched=len(leads), conversion_rate_pct=round(won / len(leads) * 100.0, 1)
+            )
+        )
+    rows.sort(key=lambda row: row.leads_touched, reverse=True)
+    return SourceAgg(by_source=rows)
+
+
 _QUALITY_BUCKETS = [(90, 100, "90-100"), (80, 89.999, "80-89"), (70, 79.999, "70-79"), (60, 69.999, "60-69"), (0, 59.999, "<60")]
 
 
@@ -566,6 +654,9 @@ def compute_performance_metrics(
     closing = _closing(records, leads_by_id)
     sentiment_agg = _sentiment_agg(records)
     conversion = _conversion(records, leads_by_id, period_start, period_end)
+    calls_to_close = _calls_to_close(records, leads_by_id, period_start, period_end)
+    lost_reasons = _lost_reasons(records, leads_by_id)
+    source_breakdown = _source_breakdown(records, leads_by_id, period_start, period_end)
     strengths, weaknesses = _strengths_and_weaknesses(breakdown, records)
 
     return PerformanceMetrics(
@@ -584,6 +675,9 @@ def compute_performance_metrics(
         closing=closing,
         sentiment=sentiment_agg,
         conversion=conversion,
+        calls_to_close=calls_to_close,
+        lost_reasons=lost_reasons,
+        source_breakdown=source_breakdown,
         quality_distribution=_quality_distribution(records),
         consistency_score=_consistency_score(records),
         trend=_trend(records, leads_by_id, period_start, period_end),

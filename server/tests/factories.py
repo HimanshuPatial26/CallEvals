@@ -20,6 +20,7 @@ from app.schemas import (
     IntentLevel,
     Lead,
     LeadStageEvent,
+    LostReason,
     NextStep,
     Objection,
     ObjectionCategory,
@@ -120,14 +121,24 @@ def make_call(
     )
 
 
-def make_lead(lead_id: str, stage=FunnelStage.UNTAGGED, deal_size=None, stage_events=None) -> Lead:
+def make_lead(
+    lead_id: str,
+    stage=FunnelStage.UNTAGGED,
+    deal_size=None,
+    stage_events=None,
+    source: str | None = None,
+    lost_reason: LostReason | None = None,
+    created_day: int = 1,
+) -> Lead:
     return Lead(
         id=lead_id,
         display_name=f"Lead {lead_id}",
+        source=source,
         stage=stage,
         deal_size_aed=deal_size,
+        lost_reason=lost_reason,
         stage_history=stage_events or [],
-        created_at=datetime(2026, 7, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 7, created_day, tzinfo=timezone.utc),
     )
 
 

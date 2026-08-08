@@ -65,6 +65,24 @@ class FunnelStage(str, Enum):
     LOST = "lost"
 
 
+class LostReason(str, Enum):
+    """ROADMAP.md C3 (doc section 17: "reasons customers reject the
+    product"). Deliberately not ObjectionCategory reused — a lost reason
+    answers "why this deal ultimately died," a different axis than "what
+    concern came up on a call": a lead can raise a price objection and
+    still close, or go quiet with no objection ever raised and still be
+    lost. Set only when stage=lost; see Lead.lost_reason."""
+
+    PRICE = "price"
+    TIMING = "timing"
+    COMPETITOR = "competitor"
+    FINANCING = "financing"
+    UNRESPONSIVE = "unresponsive"
+    NOT_QUALIFIED = "not_qualified"
+    CHANGED_MIND = "changed_mind"
+    OTHER = "other"
+
+
 class TranscriptSegment(BaseModel):
     """One speaker turn. F1 output."""
 
@@ -269,6 +287,18 @@ class LeadStageEvent(BaseModel):
     changed_by: str | None = Field(default=None, description="Agent id or free text; None until auth exists (ROADMAP Phase E)")
 
 
+class AssignmentEvent(BaseModel):
+    """One entry in a lead's reassignment history (ROADMAP.md C6). Only
+    written on an explicit reassignment via POST /api/leads/{id}/reassign —
+    the initial assignment at lead creation is not itself an event, same
+    convention as stage_history only recording explicit stage changes, not
+    the initial UNTAGGED default."""
+
+    assigned_agent_id: str | None
+    changed_at: datetime
+    changed_by: str | None = Field(default=None, description="Agent id or free text; None until auth exists (ROADMAP Phase E)")
+
+
 class Lead(BaseModel):
     """A prospect, independent of any single call. Replaces the previous
     call-level CallOutcome — a lead's funnel stage is the single source of
@@ -281,7 +311,9 @@ class Lead(BaseModel):
     assigned_agent_id: str | None = None
     stage: FunnelStage = FunnelStage.UNTAGGED
     deal_size_aed: float | None = Field(default=None, ge=0.0, description="Only meaningful once stage=won")
+    lost_reason: LostReason | None = Field(default=None, description="Only meaningful once stage=lost")
     stage_history: list[LeadStageEvent] = Field(default_factory=list)
+    assignment_history: list[AssignmentEvent] = Field(default_factory=list)
     created_at: datetime
 
 
@@ -456,6 +488,63 @@ class ConversionAgg(BaseModel):
     intent_breakdown: list[IntentDistribution]
 
 
+class CallVolumeBucket(BaseModel):
+    range_label: str
+    count: int
+    pct: float
+
+
+class CallsToCloseAgg(BaseModel):
+    """How many touches (calls) and how many days it takes to close a deal
+    (ROADMAP.md C2) — a real sales-ops question the rollup couldn't answer
+    at all before this. calls_per_lead_distribution buckets every distinct
+    lead touched in the period (not just won ones); avg_calls_to_close and
+    avg_days_to_close are computed only over leads that transitioned to won
+    *within this period* (same period-scoped rule as
+    ConversionAgg.conversion_rate_pct), counting only calls made up to and
+    including the day of that transition — a courtesy call placed after the
+    deal already closed shouldn't inflate "how many calls did it take"."""
+
+    calls_per_lead_distribution: list[CallVolumeBucket]
+    avg_calls_to_close: float | None
+    avg_days_to_close: float | None
+    won_leads_measured: int = Field(description="How many won-in-period leads the two averages above are computed over")
+
+
+class SourceBreakdownRow(BaseModel):
+    source: str = Field(description='The lead\'s free-text Lead.source value, or "Unknown" if never set')
+    leads_touched: int
+    conversion_rate_pct: float | None
+
+
+class SourceAgg(BaseModel):
+    """Conversion by lead source/channel (ROADMAP.md C4 — "which lead
+    source converts"). Lead.source stays free text (no fixed taxonomy is
+    enforced); this groups by whatever string value is actually present,
+    bucketing untagged leads under "Unknown" rather than dropping them."""
+
+    by_source: list[SourceBreakdownRow]
+
+
+class LostReasonBreakdownRow(BaseModel):
+    reason: LostReason
+    count: int
+    pct: float
+
+
+class LostReasonAgg(BaseModel):
+    """Why lost leads were lost (ROADMAP.md C3, doc section 17).
+    Current-snapshot semantics like ClosingAgg.lost_leads, not period-scoped
+    like ConversionAgg — counts leads currently at stage=lost with a reason
+    recorded, regardless of when they were lost. A lead lost without a
+    reason recorded (pre-C3 data, or a manager who skipped the field) is
+    counted in ClosingAgg.lost_leads but not here — total_lost_with_reason
+    can be lower than ClosingAgg.lost_leads for that reason."""
+
+    total_lost_with_reason: int
+    by_reason: list[LostReasonBreakdownRow]
+
+
 class QualityBucket(BaseModel):
     range_label: str
     count: int
@@ -530,6 +619,9 @@ class PerformanceMetrics(BaseModel):
     closing: ClosingAgg
     sentiment: SentimentAgg | None
     conversion: ConversionAgg
+    calls_to_close: CallsToCloseAgg
+    lost_reasons: LostReasonAgg
+    source_breakdown: SourceAgg
 
     quality_distribution: list[QualityBucket]
     consistency_score: float | None = Field(description="100 minus the normalized stdev of per-call overall_score; higher = more stable")

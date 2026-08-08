@@ -25,9 +25,12 @@ Everything here runs on free tiers — no GCP billing account, no paid API:
   `ASR_PROVIDER=deepgram` and `DEEPGRAM_API_KEY` in `.env`) — it gets native
   multichannel transcription (no local channel-split step) and, closer to the
   PRD's own per-minute cost assumption in section 7.
-- **Extraction — Gemini Developer API free tier** (ai.google.dev). Structured
-  JSON output (F2 summary, F3 next steps, F4 objections), no GCP billing account
-  required, unlike Vertex AI or Cloud Speech.
+- **Extraction — Gemini Developer API free tier** (ai.google.dev), by default.
+  Structured JSON output (F2 summary, F3 next steps, F4 objections), no GCP
+  billing account required, unlike Vertex AI or Cloud Speech. **Groq is
+  available as an opt-in alternative** (set `EXTRACTION_PROVIDER=groq` and
+  `GROQ_API_KEY` in `.env`) — see "Groq extraction" below for why you'd want
+  to and what the tradeoffs are.
 - **Storage — filesystem**, no database. Matches the PRD's own scope discipline
   (section 8: no vector DB at MVP) — a handful of design partners don't need
   Postgres yet.
@@ -466,6 +469,66 @@ Organization → Corniche Team → Ahmed Hussain, catching the bug above,
 fixing it, and re-confirming the full click-through before cleaning the
 synthetic calls/lead back out of `server/data/`.
 
+## Groq extraction (2026-08-08) — opt-in alternative to Gemini
+
+**Why:** Gemini's free tier caps out at 20 `generate_content` requests/day,
+*total, per project, per model* — not per user, not per call. That's not a
+theoretical constraint; it's the exact error this app throws once a normal
+day of testing/demoing burns through the quota:
+`429 RESOURCE_EXHAUSTED ... GenerateRequestsPerDayPerProjectPerModel-FreeTier
+... limit: 20`. The fix that actually scales is a paid Gemini tier (see
+ROADMAP.md F3), but for demoing or developing past the daily wall *today*
+without attaching billing, Groq's free tier supports far more request
+volume, at the cost of extraction quality coming from an open-weight model
+(Llama) instead of Gemini.
+
+**What changed to add it.** The prompt, wire schema (the Pydantic shape the
+model's JSON is validated against before becoming an `ExtractionResult`),
+and the Wire→domain mapping used to live entirely inside
+`gemini_extractor.py`; they're now shared in `app/extraction/common.py` so
+adding a second provider didn't mean copy-pasting ~160 lines of prompt and
+schema. `app/extraction/groq_extractor.py` calls Groq's OpenAI-compatible
+`chat/completions` endpoint directly via `httpx` (already a dependency —
+same pattern as `deepgram_provider.py`; no new SDK added for one endpoint),
+with `response_format: {"type": "json_object"}` and an explicit JSON-shape
+reminder appended to the prompt. `app/extraction/factory.py` selects the
+provider from `EXTRACTION_PROVIDER` in config the same way
+`app/asr/factory.py` already does for ASR — Gemini stays the default, so no
+existing deployment's behavior changes without opting in.
+
+**The real difference from Gemini, and why it matters.** Gemini's
+`response_schema` mode constrains the model's output at decode time — it
+structurally cannot emit a shape that doesn't validate. Groq (and most
+open-weight-model APIs) has no equivalent; `json_object` mode only
+guarantees the response parses as *some* JSON, not this JSON. Pydantic
+validation against the same `WireExtractionResult` schema both providers
+share is what actually enforces correctness on the Groq path — a
+shape-mismatched response fails loudly as a `ValidationError` (surfaced to
+`record.status = "failed"` / `record.error` same as any other pipeline
+failure) rather than silently becoming a wrong or partially-empty call
+review. Expect to need more prompt iteration and a real precision run
+(`eval/run_precision_eval.py` is Gemini-hardcoded today, not yet
+provider-parameterized) before trusting Groq's numbers at the same bar as
+the Gemini precision results already in this README.
+
+**Verification.** 9 new backend tests: `test_extraction_factory.py`
+(defaults to Gemini, selects Groq when configured, clear error on a missing
+key — mirrors `test_asr_factory.py`) and `test_groq_extractor.py` (missing
+key raises, a successful response maps correctly including
+segment-index→timestamp resolution, the request is sent with the configured
+model and JSON mode, malformed JSON content raises, JSON that doesn't match
+the wire shape raises a `pydantic.ValidationError`, and a non-2xx response
+propagates as `httpx.HTTPStatusError`) — all against a mocked `httpx.post`,
+same pattern as the existing Deepgram tests, no network call. **Not yet
+verified against the real Groq API** — this sandbox has no `GROQ_API_KEY`
+to test against live, so unlike Gemini and Deepgram (both confirmed working
+end to end against real APIs earlier in this README's "Known limitations"
+section), Groq's actual response shape/behavior in production is
+unconfirmed. If you add a real key: run a call through with
+`EXTRACTION_PROVIDER=groq` and compare the resulting `CallDetail` review
+against what Gemini produces for the same audio before trusting it for real
+review work.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes
@@ -489,7 +552,9 @@ server/
     asr/            ASRProvider interface + faster-whisper (default) and
                      Deepgram (opt-in) implementations, selected via factory.py
     audio/           dual-channel split
-    extraction/      ExtractionProvider interface + Gemini implementation
+    extraction/      ExtractionProvider interface + Gemini (default) and
+                     Groq (opt-in) implementations, selected via factory.py;
+                     shared prompt/wire-schema/mapping in common.py
     routers/         FastAPI routes
     insights.py      rule-based behavior readouts (talk time, monologues, questions, interruptions)
     compliance.py    rule-based script-adherence checks (analytics doc section 14)
@@ -588,8 +653,9 @@ recall) — the model never missed a real commitment or objection, but it kept
 splitting one real conversational moment into two extracted items (e.g. one
 ground-truth next step, "draft the offer letter and send it tomorrow," came
 back as two separate items — the rep's side and the customer's acknowledgment
-of the same exchange). `EXTRACTION_PROMPT` in `gemini_extractor.py` now
-explicitly instructs the model to merge near-duplicate next
+of the same exchange). `EXTRACTION_PROMPT` (now in `app/extraction/common.py`,
+shared with the Groq path — see "Groq extraction" below) explicitly
+instructs the model to merge near-duplicate next
 steps/objections about the same underlying commitment or concern into one
 entry before finalizing its answer. Re-ran against the same 6 calls and same
 model afterward: next-step precision went 75% → 100%, objections 50% → 75%,

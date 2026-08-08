@@ -28,6 +28,14 @@ anything but a demo with synthetic data. This is a budget/procurement line
 item, not an engineering one, and it blocks Phase 3 in practice even though
 it doesn't block the code.
 
+**Partial mitigation shipped (2026-08-08): Groq as an opt-in extraction
+provider** (`EXTRACTION_PROVIDER=groq`) — see README.md "Groq extraction"
+for the full writeup. It moves the daily-quota wall much higher without
+attaching billing, at the cost of open-weight (Llama) extraction quality
+instead of Gemini's — not yet precision-measured, and not a substitute for
+F3 (paid-tier usage with real cost monitoring) once actual production
+volume is in play.
+
 ---
 
 ## Phase A — Identity & lead data model (foundation)

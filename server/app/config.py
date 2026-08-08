@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
 
+    extraction_provider: str = "gemini"  # "gemini" | "groq"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+
     asr_provider: str = "faster_whisper"  # "faster_whisper" | "deepgram"
 
     whisper_model_size: str = "base"

@@ -41,12 +41,22 @@ didn't actually separate — a real failure mode found in testing, where a
 recorder mixes both parties onto one track and leaves the other channel
 silent, so `multichannel=true` has nothing to split and Deepgram returns
 content on only one channel index. Either way, role assignment is a
-heuristic: the first diarized speaker to talk is labeled the rep, everyone
-else the customer. Right when the rep opens the call (the norm for outbound
-sales calls), wrong if the customer calls in first or if hold music / an IVR
-segment gets diarized as its own "speaker." Diarization confidence also runs
+heuristic: **the diarized speaker with the most total talk time across the
+call is labeled the rep**, everyone else the customer.
+
+That specifically isn't "whoever talks first" — the first version of this
+heuristic was, and real testing caught it getting the roles backwards. In an
+actual phone call, whoever *answers* talks first (a bare "hello") before the
+caller says anything, so on an outbound call the first voice is almost always
+the customer, not the rep — the opposite of what "first speaker = rep"
+assumes. Total talk time doesn't have that problem: reps pitch, explain, and
+walk customers through steps, so they consistently talk more than a customer
+mostly giving short replies. Still a heuristic, not a guarantee — wrong if
+the customer is unusually talkative, or the call is too short for talk time
+alone to distinguish the two sides. Diarization confidence also runs
 noticeably lower than channel-based separation in practice — expect
-occasional misattributed short turns ("okay", "yeah").
+occasional misattributed short turns ("okay", "yeah") even when the
+rep/customer split itself is right.
 
 **On the faster-whisper path**, mono calls still come back `Speaker.UNKNOWN`
 — Whisper itself has no diarization, so matching Deepgram's mono behavior

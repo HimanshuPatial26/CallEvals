@@ -100,26 +100,39 @@ class DeepgramProvider(ASRProvider):
         """Used directly for mono calls, and as a fallback when a 2-channel
         file didn't actually separate the speakers.
 
-        Heuristic: the first distinct diarized speaker to talk is labeled the
-        rep, every other speaker ID is labeled the customer (multi-party calls
-        beyond two voices collapse into "customer" — Phase 0 only models two
-        roles). This is right when the rep opens the call, which is the norm
-        for outbound sales calls, and wrong when the customer calls in first
-        or the call opens with hold music / an IVR segment that gets diarized
-        as its own "speaker." Deepgram's diarization confidence is also
-        noticeably lower than channel-based separation — expect occasional
-        misattributed short turns ("okay", "yeah").
+        Heuristic: the diarized speaker with the most total transcript length
+        across the call is labeled the rep, every other speaker ID is labeled
+        the customer (multi-party calls beyond two voices collapse into
+        "customer" — Phase 0 only models two roles).
+
+        NOT "whoever talks first" — that was the original heuristic here and
+        it was backwards in practice. In a real phone call, whoever answers
+        speaks first (a bare "hello"), before the caller says anything; on an
+        outbound call that means the *customer* is almost always the first
+        voice, not the rep. Total talk time doesn't have that problem: reps
+        pitch, explain, and walk customers through steps, so they consistently
+        talk more than a customer mostly giving short replies ("yes", "okay").
+        Still a heuristic, not a guarantee — wrong if the customer is
+        unusually talkative (a long complaint, a lot of questions) or the call
+        is short enough that talk time alone can't distinguish the two sides.
+        Deepgram's diarization confidence is also noticeably lower than
+        channel-based separation in practice — expect occasional misattributed
+        short turns even when the rep/customer split itself is correct.
         """
-        first_speaker_id: int | None = None
+        text_length_by_speaker: dict[int, int] = {}
+        for u in utterances:
+            speaker_id = u.get("speaker")
+            if speaker_id is not None:
+                text_length_by_speaker[speaker_id] = text_length_by_speaker.get(speaker_id, 0) + len(u["transcript"])
+        rep_speaker_id = max(text_length_by_speaker, key=text_length_by_speaker.get, default=None)
+
         segments = []
         for u in utterances:
             speaker_id = u.get("speaker")
             if speaker_id is None:
                 speaker = Speaker.UNKNOWN
             else:
-                if first_speaker_id is None:
-                    first_speaker_id = speaker_id
-                speaker = Speaker.REP if speaker_id == first_speaker_id else Speaker.CUSTOMER
+                speaker = Speaker.REP if speaker_id == rep_speaker_id else Speaker.CUSTOMER
             segments.append(
                 TranscriptSegment(speaker=speaker, start=u["start"], end=u["end"], text=u["transcript"].strip())
             )

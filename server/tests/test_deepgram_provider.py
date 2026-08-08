@@ -90,6 +90,39 @@ def test_mono_without_speaker_field_labels_unknown(deepgram_key, monkeypatch, tm
     assert segments[0].speaker == Speaker.UNKNOWN
 
 
+def test_first_speaker_answering_with_a_greeting_is_not_assumed_to_be_rep(deepgram_key, monkeypatch, tmp_path):
+    """Regression test for the real bug: the original heuristic assumed
+    whoever talks first is the rep, but in a real phone call whoever *answers*
+    talks first (a bare greeting) before the caller says anything - so on an
+    outbound call the first voice is usually the customer, not the rep. This
+    reproduces exactly that shape and confirms the fix (most total talk time,
+    not first to talk) gets it right.
+    """
+    from app.asr.deepgram_provider import DeepgramProvider
+
+    _mock_response(
+        monkeypatch,
+        [
+            {"start": 2.1, "end": 2.4, "channel": 0, "transcript": "hello", "speaker": 0},
+            {
+                "start": 4.2,
+                "end": 12.0,
+                "channel": 0,
+                "transcript": "hello my name is steven i'm calling you from the finance department",
+                "speaker": 1,
+            },
+        ],
+    )
+
+    audio_path = tmp_path / "call.wav"
+    audio_path.write_bytes(b"fake-audio")
+
+    segments = DeepgramProvider().transcribe(audio_path, dual_channel=False)
+
+    assert segments[0].speaker == Speaker.CUSTOMER  # spoke first, but only a bare greeting
+    assert segments[1].speaker == Speaker.REP  # spoke second, but is doing all the talking
+
+
 def test_empty_transcript_utterances_are_skipped(deepgram_key, monkeypatch, tmp_path):
     from app.asr.deepgram_provider import DeepgramProvider
 
@@ -135,9 +168,15 @@ def test_diarization_fallback_collapses_third_speaker_into_customer(deepgram_key
     _mock_response(
         monkeypatch,
         [
-            {"start": 0.0, "end": 1.0, "channel": 1, "transcript": "hi", "speaker": 2},
-            {"start": 1.5, "end": 2.5, "channel": 1, "transcript": "hey", "speaker": 0},
-            {"start": 3.0, "end": 4.0, "channel": 1, "transcript": "who's there", "speaker": 1},
+            {
+                "start": 0.0,
+                "end": 1.0,
+                "channel": 1,
+                "transcript": "let me walk you through the payment plan and next steps in detail",
+                "speaker": 0,
+            },
+            {"start": 1.5, "end": 2.5, "channel": 1, "transcript": "hi", "speaker": 2},
+            {"start": 3.0, "end": 4.0, "channel": 1, "transcript": "okay", "speaker": 1},
         ],
     )
 
@@ -146,7 +185,7 @@ def test_diarization_fallback_collapses_third_speaker_into_customer(deepgram_key
 
     segments = DeepgramProvider().transcribe(audio_path, dual_channel=True)
 
-    assert segments[0].speaker == Speaker.REP
+    assert segments[0].speaker == Speaker.REP  # speaker 0 has by far the most total talk time
     assert segments[1].speaker == Speaker.CUSTOMER
     assert segments[2].speaker == Speaker.CUSTOMER
 

@@ -339,6 +339,19 @@ agent-specific team-benchmark numbers for two agents on different teams —
 zero console errors, real data throughout except the ASR/Gemini pipeline
 itself (still gated by the free-tier quota noted above).
 
+**Demo roster.** `server/scripts/seed_demo_roster.py` populates exactly the
+target scenario — 10 teams (Dubai/Abu Dhabi neighborhood names, for
+flavor) x 10 agents each (one manager per team) — with randomly-combined
+first/last names from pools reflecting the PRD's ICP, none referring to a
+real person. IDs are `uuid5`-derived from each name, so it's idempotent —
+safe to re-run after editing the pools without creating duplicates. Demo
+data only; never presented as, or intended to look like, real customer
+data. Run it with:
+
+```bash
+cd server && source .venv/bin/activate && python -m scripts.seed_demo_roster
+```
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

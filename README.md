@@ -705,6 +705,89 @@ any backend test could have caught:
 
 Seeded leads/calls removed from `server/data/` afterward.
 
+## Visual design refresh (2026-08-08) — dark theme reskin
+
+**What.** A full visual restyle of all four tabs (Calls, Agent Performance,
+Organization, Leads) plus the CallDetail and Kanban-modal views, using a
+dark "command deck" theme (purple/cyan accent palette, monospace labels,
+sidebar navigation) as reference. Requested against an imported Claude
+Design mockup (`Call Intelligence.dc.html`) that used fictional data and a
+fictional product name ("VoxPrism"); per explicit direction this was used
+purely as a visual/interaction reference, never ported literally. Three
+scope decisions were confirmed up front: (1) reskin all four tabs, not
+just one; (2) for the mockup's features with no backend today (AI chat
+assistant, per-call deal-risk scoring, topic/competitor extraction, audio
+waveform playback), build real-data UI wherever an equivalent already
+exists and an honestly-labeled placeholder — never fabricated numbers or
+canned responses — for what doesn't; (3) keep the CallEvals product name
+and branding, not the mockup's.
+
+**What changed.**
+- `App.css` rewritten around a CSS custom-property design-token system
+  (`--bg-base`, `--accent-purple`, `--font-mono`, etc.) — dark background,
+  purple/cyan/green/amber/rose accents, "Space Grotesk"/"JetBrains Mono"
+  font-family names in the stack (no external font fetch — see below).
+- `App.js` rewritten around a sidebar-nav shell (`.app-sidebar`,
+  `.side-nav`) replacing the old top-tab bar, plus a topbar with a
+  breadcrumb/title per tab and an "Ask CallEvals" button. The Calls badge
+  in the nav and the sidebar's "model status" widget both show real
+  counts (`calls.length`, live `processingCount` from the actual call
+  list) — no fabricated latency/throughput numbers.
+- Two new shared chart primitives, `Sparkline.js` and `TrendLineChart.js`
+  — small reusable inline SVGs that only render when the caller has a real
+  ≥2-point numeric series to plot; both take real `PerformanceMetrics`
+  data (`report.trend`), never synthetic/randomized data.
+- `AgentOverviewPanel.js` gets real sparklines on exactly the 3 of 7 KPI
+  tiles that actually have a per-week series in `report.trend`
+  (`avg_score`, `calls`, `conversion_rate_pct`); the other 4 (qualified-lead
+  rate, sentiment, compliance, trend-vs-prior) deliberately get none.
+- `AgentQualityTrendPanel.js`'s Weekly Trend section gets a
+  `TrendLineChart` (score + conversion, dual-line) above the existing
+  precise numeric table, which stays for exact lookups.
+- The "Ask Prism" AI assistant from the mockup became "Ask CallEvals" — a
+  toggleable panel with plainly-labeled placeholder copy, not a working
+  chat, since there is no backend for it.
+- CallDetail, the Kanban board, and all three lead modals (Won-size
+  prompt, Lost-reason prompt, `LeadDetailModal`) needed **no
+  component-level changes** — they already inherit the new theme
+  correctly through shared `.panel`/`.modal`/`.insights-list` classes,
+  confirmed by screenshot review rather than assumed.
+
+**Two real bugs found and fixed during the rewrite**, neither reachable by
+a backend test:
+1. `.kpi-tile` silently lost its `display: flex; flex-direction: column`
+   during the CSS rewrite (present in the prior theme, dropped by
+   omission), collapsing KPI value/label onto one line instead of
+   stacking them. Fixed, plus JSX in `AgentOverviewPanel.js` reordered so
+   label renders before value in every tile (matches the intended reading
+   order).
+2. `.kpi-label` had no minimum height, so tiles with a longer wrapping
+   label (e.g. "QUALIFIED-LEAD RATE") pushed their value down relative to
+   tiles with a short single-line label, misaligning the whole KPI row's
+   value baseline. Fixed with a `min-height` on `.kpi-label` sized to the
+   longest label at two lines.
+
+**A real reliability issue found, not shipped.** The first draft of
+`App.css` pulled "Space Grotesk"/"JetBrains Mono" via a Google Fonts
+`@import url(...)`. `curl` reached the URL fine (200 OK), but the actual
+Playwright/Chromium browser context hit `net::ERR_CONNECTION_RESET` on it,
+and a second run hung for the full 30s `networkidle` timeout waiting on
+the retrying request — a genuine failure mode on any network that can't
+reach `fonts.googleapis.com`, not just this sandbox. Fixed by dropping the
+`@import`/`<link>` entirely; the font-family *names* stay in the CSS
+stacks as harmless first-choice values (falling back to `system-ui`)
+since referencing an unavailable family name triggers no network request
+— only `@import`/`<link>`/`@font-face` do.
+
+**Verification.** 158 backend tests still passing (this was a
+frontend-only change). Live Playwright pass across all four tabs, the
+CallDetail page, and the Kanban lead-detail modal, screenshotted and
+reviewed panel-by-panel against the previous theme's class list (`comm
+-23` diff on extracted selectors, confirming only 3 selectors —
+`.app-header`/`.app-nav`/`.subtitle` — were intentionally dropped, matching
+the shell restructure, with nothing else silently lost). Seeded
+`verify-reskin-*` calls/leads removed from `server/data/` afterward.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

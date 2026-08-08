@@ -1,3 +1,5 @@
+import TrendLineChart from "./TrendLineChart";
+
 // Call quality distribution (doc section 15) + consistency score (section
 // 16) + weekly trend (section 17). Consistency answers a different question
 // than the average: "how reliably good," not "how good."
@@ -32,11 +34,22 @@ export default function AgentQualityTrendPanel({ distribution, consistency, tren
       </section>
 
       <section className="panel">
-        <h3>Weekly trend</h3>
-        {trend.length === 0 ? (
-          <p className="hint">No calls in this period.</p>
-        ) : (
-          <table className="trend-table">
+        <div className="chart-legend-row">
+          <h3 style={{ margin: 0 }}>Weekly trend</h3>
+          <div className="chart-legend">
+            <span className="chart-legend-item">
+              <span className="chart-legend-swatch" style={{ background: "#c084fc" }} />
+              SCORE
+            </span>
+            <span className="chart-legend-item">
+              <span className="chart-legend-swatch dashed" style={{ borderColor: "#22d3ee" }} />
+              CONVERSION
+            </span>
+          </div>
+        </div>
+        <TrendLineChart trend={trend} />
+        {trend.length > 0 && (
+          <table className="trend-table" style={{ marginTop: "12px" }}>
             <thead>
               <tr>
                 <th>Week</th>

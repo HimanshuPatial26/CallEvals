@@ -80,6 +80,16 @@ already used for next-step and objection extraction. Each stat is shown to
 the manager individually, with no color-coding, ranking, or pass/fail
 framing; what (if anything) to coach on is their call, not the tool's.
 
+**Objection-handling completeness** extends F4 rather than adding a new
+category: each objection now also carries `addressed: true/false` — did the
+rep come back to it later in the call with a relevant response, or did it
+just hang there. This rides the extraction LLM call that's already
+happening (marginal cost only, no new API call) and is verified live: fed
+`GeminiExtractor` a call where the rep offers a payment-plan alternative
+after a price objection (`addressed: true`) and one where the rep changes
+the subject without ever responding (`addressed: false`) — both came back
+correct.
+
 Only computed when the transcript actually distinguishes rep from customer
 — a mono call with no diarization has nothing to compute these from, and
 the UI says so plainly rather than showing zeros.

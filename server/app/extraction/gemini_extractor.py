@@ -36,7 +36,10 @@ brokerage sales manager. Extract exactly three things:
    fit one of the three categories. If the customer raises the same underlying \
    concern more than once in the call, even in different words (e.g. restating a \
    price concern after first mentioning it), that is ONE objection, not two — pick \
-   the clearest quote and extract it once.
+   the clearest quote and extract it once. Also set addressed: true if the rep \
+   responds to the objection later in the call with a relevant answer, offer, or \
+   explanation; false if it's raised and the call moves on without the rep coming \
+   back to it.
 
 Before finalizing, check your own next_steps and objections lists: if two entries \
 describe the same underlying commitment or the same underlying concern, merge them \
@@ -65,6 +68,7 @@ class _WireObjection(BaseModel):
     quote: str
     source_segment_index: int | None = None
     confidence: float
+    addressed: bool
 
 
 class _WireExtractionResult(BaseModel):
@@ -129,6 +133,7 @@ class GeminiExtractor(ExtractionProvider):
                     quote=obj.quote,
                     source_timestamp=_resolve_timestamp(obj.source_segment_index, transcript),
                     confidence=obj.confidence,
+                    addressed=obj.addressed,
                 )
                 for obj in wire.objections
             ],

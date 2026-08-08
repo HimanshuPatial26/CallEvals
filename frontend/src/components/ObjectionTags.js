@@ -23,6 +23,9 @@ export default function ObjectionTags({ callId, objections, feedback, onJumpToTi
             <button className={`jump-link objection-tag tag-${objection.category}`} onClick={() => onJumpToTimestamp(objection.source_timestamp)}>
               {objection.category}
             </button>
+            <span className={`addressed-tag ${objection.addressed ? "addressed-yes" : "addressed-no"}`}>
+              {objection.addressed ? "Addressed" : "Not addressed"}
+            </span>
             <span className="item-meta">"{objection.quote}" · confidence {(objection.confidence * 100).toFixed(0)}%</span>
             <div className="feedback-buttons">
               <button

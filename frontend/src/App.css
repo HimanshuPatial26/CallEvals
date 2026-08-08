@@ -197,6 +197,24 @@ body {
   font-size: 0.8rem;
 }
 
+.addressed-tag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+}
+
+.addressed-yes {
+  background: #d7f3df;
+  color: #17663a;
+}
+
+.addressed-no {
+  background: #f0f0f0;
+  color: #666;
+}
+
 .tag-price {
   background: #fde2c8;
   color: #8a4a00;

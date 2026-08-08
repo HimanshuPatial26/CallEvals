@@ -46,6 +46,9 @@ class Objection(BaseModel):
     quote: str = Field(description="The customer's own words, not a paraphrase")
     source_timestamp: float | None = None
     confidence: float = Field(ge=0.0, le=1.0)
+    addressed: bool = Field(
+        description="Whether the rep responded to this objection later in the call, per the model's read of the transcript"
+    )
 
 
 class ExtractionResult(BaseModel):

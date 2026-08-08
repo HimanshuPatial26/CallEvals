@@ -89,7 +89,9 @@ def test_successful_extraction_maps_to_extraction_result(groq_key, monkeypatch):
 
 
 def test_request_sends_configured_model_and_json_mode(groq_key, monkeypatch):
-    monkeypatch.setattr(settings, "groq_model", "llama-3.3-70b-versatile")
+    # Arbitrary test value -- just confirms whatever's configured flows
+    # through to the request, not a recommendation for a real model id.
+    monkeypatch.setattr(settings, "groq_model", "test-model-id")
     captured = {}
 
     def fake_post(url, **kwargs):
@@ -109,7 +111,7 @@ def test_request_sends_configured_model_and_json_mode(groq_key, monkeypatch):
 
     assert captured["url"] == "https://api.groq.com/openai/v1/chat/completions"
     assert captured["headers"]["Authorization"] == "Bearer test-key"
-    assert captured["json"]["model"] == "llama-3.3-70b-versatile"
+    assert captured["json"]["model"] == "test-model-id"
     assert captured["json"]["response_format"] == {"type": "json_object"}
 
 

@@ -523,26 +523,39 @@ model and JSON mode, malformed JSON content raises, JSON that doesn't match
 the wire shape raises a `pydantic.ValidationError`, and a non-2xx response
 raises with the response body included, not just the status code) — all
 against a mocked `httpx.post`, same pattern as the existing Deepgram tests,
-no network call. **Not verified against the real Groq API, and this
-sandbox cannot reach one to fix that** — its outbound proxy blocks
-`api.groq.com` and `console.groq.com` outright (policy denial, confirmed
-via the proxy's own status endpoint and a blocked `WebFetch`), so unlike
-Gemini and Deepgram (both confirmed working end to end against real APIs
-earlier in this README's "Known limitations" section), nobody building
-from this environment can independently verify Groq's response
-shape/behavior, or even check whether `GROQ_MODEL`'s default
-(`llama-3.3-70b-versatile`) is still a live model id — Groq retires/renames
-model ids over time. **A real user hit exactly this**: `404 Not Found` from
+no network call.
+
+**This sandbox cannot reach Groq at all to verify any of this against the
+real API** — its outbound proxy blocks `api.groq.com` and
+`console.groq.com` outright (policy denial, confirmed via the proxy's own
+status endpoint and a blocked `WebFetch`), so unlike Gemini and Deepgram
+(both confirmed working end to end against real APIs earlier in this
+README's "Known limitations" section), nobody building from this
+environment can independently verify Groq's response shape/behavior or
+check whether `GROQ_MODEL`'s value is still a live model id. That gap
+turned out not to be hypothetical: `llama-3.3-70b-versatile` (this
+repo's original default) got decommissioned by Groq and started 404ing
+in production — a real user hit `404 Not Found` from
 `api.groq.com/openai/v1/chat/completions`, which read as a broken
-integration but was actually `response.raise_for_status()` dropping the
-response body — the one place Groq puts the actual reason (most likely
-`model_decommissioned`, Groq's real error code for a retired model, though
-this couldn't be confirmed from here). Fixed to raise with the full
-response body included. If you hit this: check
-https://console.groq.com/docs/models for the current model list and update
-`GROQ_MODEL` in `.env` — this repo's default may be stale by the time you
-read this, and there's no way to keep it current without network access to
-Groq.
+integration. Two things were wrong, fixed together:
+
+1. `response.raise_for_status()` raised with only the status code,
+   dropping the response body — the one place Groq puts the actual reason
+   (`"code": "model_decommissioned"` for a retired model, indistinguishable
+   from a wrong-URL 404 without it). Now raises with the full body
+   included.
+2. `GROQ_MODEL` now defaults to `openai/gpt-oss-120b`, confirmed live
+   against the real API by that same user (not from this sandbox — it
+   still can't reach Groq). JSON mode
+   (`response_format: {"type": "json_object"}`) stayed in the request; an
+   earlier draft of the fix dropped it, but the user confirmed that was
+   just simplification while debugging, not something the new model
+   required removing, so keeping it is strictly safer.
+
+Groq rotates model ids over time regardless of what's default today —
+check https://console.groq.com/docs/models if this one goes stale too;
+there's no way to keep it current without network access to Groq, which
+this dev environment does not have.
 
 ## Lead pipeline (2026-08-08) — Kanban board, ROADMAP.md C5
 

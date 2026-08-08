@@ -2,8 +2,8 @@
 alternative to Gemini for teams hitting Gemini's free-tier cap (20
 requests/day per project/model; see ROADMAP.md's "one blocker that isn't a
 code task"). Groq's free tier is far more generous on request volume, at
-the cost of using an open-weight model (Llama) instead of Gemini for the
-same structured-extraction task — expect more prompt-tuning and a lower
+the cost of using an open-weight model instead of Gemini for the same
+structured-extraction task — expect more prompt-tuning and a lower
 precision bar than the Gemini eval numbers in README.md until this path
 gets its own precision run.
 
@@ -24,9 +24,15 @@ instead of pulling in the groq/openai SDK for one endpoint.
 On a non-2xx response, the error raised includes the response body, not
 just the status code — Groq puts the actionable detail there (e.g. a 404
 with `"code": "model_decommissioned"` when GROQ_MODEL names a retired
-model, which otherwise reads identically to a wrong-URL 404). Groq rotates
-model ids over time; check https://console.groq.com/docs/models for the
-current list rather than trusting .env.example's default forever.
+model, which otherwise reads identically to a wrong-URL 404). This is
+exactly what happened in production: the original default here,
+llama-3.3-70b-versatile, got decommissioned by Groq and started 404ing.
+Confirmed and fixed by a user against the real API — this dev environment
+can't reach api.groq.com or console.groq.com at all (egress-blocked), so
+it can't independently verify Groq model ids. GROQ_MODEL now defaults to
+openai/gpt-oss-120b, confirmed live as of 2026-08-08, but Groq rotates
+model ids over time regardless; check
+https://console.groq.com/docs/models if this one goes stale too.
 """
 
 import json

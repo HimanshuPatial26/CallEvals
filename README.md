@@ -119,6 +119,27 @@ conflating the two would muddy which risk actually failed. F1 (transcription
 accuracy) needs its own check against real call audio once real audio exists to
 check it against.
 
+**Real run, against live `gemini-2.5-flash` (6 mock calls):**
+
+| | precision | recall |
+|---|---|---|
+| next steps | 75% | 100% |
+| objections | 50% | 100% |
+
+Below the PRD's 85% next-step launch gate (section 6) — do not treat this as
+trustworthy yet. But recall was 100% on both: the model never missed a real
+commitment or objection a manager would want flagged. Every precision miss was
+the model splitting one real conversational moment into two extracted items —
+e.g. one ground-truth next step ("draft the offer letter and send it
+tomorrow") got extracted as two separate items (the rep's and the customer's
+side of the same exchange) — not a hallucinated commitment that never
+happened. One miss (a "not looking to move fast" line tagged as a timing
+objection) is a genuinely debatable ground-truth call, not a clear model
+error. That's a specific, fixable prompt issue — instruct the model to
+consolidate related commitments/objections into one item — rather than a sign
+extraction is unreliable in general. Re-run after any prompt change; 6 calls
+is too small a sample to treat these percentages as more than directional.
+
 ### Backend tests
 
 ```bash
@@ -131,11 +152,26 @@ they run without network access, an API key, or a downloaded Whisper model.
 
 ## Known limitations / not yet verified
 
-- The full audio pipeline (upload → whisper → extraction) has not been run
-  end-to-end against real recorded audio in this repo — the dev sandbox this was
-  built in doesn't have a working `ffmpeg` install or a Gemini API key. The unit
-  tests cover the pipeline logic, channel-splitting on synthetic WAVs, and the
-  scoring harness's matching logic in isolation; run the eval script yourself
-  with a real key to get the actual precision number.
+- **Neither ASR path has completed a real transcription in this repo.** The
+  dev sandbox this was built in blocks both `huggingface.co`
+  (faster-whisper's model download) and `api.deepgram.com` at the
+  network-policy level, so a real upload fails at the ASR step no matter which
+  provider is configured — confirmed by actually trying both, not assumed.
+  `deepgram_provider.py`'s request/response parsing is covered by mocked
+  tests, and `faster_whisper_provider.py`'s channel-split logic is covered
+  against synthetic WAVs, but do one real upload somewhere without that
+  restriction before trusting F1 (transcription) on either provider.
+- **Gemini extraction is verified live**, not simulated — the precision
+  numbers above are from an actual run against `gemini-2.5-flash`, as is the
+  upload/status/error-surfacing mechanics check (a call with no reachable ASR
+  provider correctly ends up `status: "failed"` with a clear error, not
+  silently stuck). That live run is also what caught a real bug:
+  `google-genai==0.6.0` (originally pinned) builds a `$ref`/`$defs`-based JSON
+  schema for nested Pydantic models that Gemini's structured-output API
+  rejects outright — every extraction call failed with a
+  `pydantic.ValidationError` before hitting the network. Upgraded to
+  `google-genai==2.17.0`, which resolves nested models inline instead.
+  `tests/test_gemini_extractor_helpers.py::test_wire_schema_is_gemini_compatible`
+  guards against regressing this without needing network access.
 - No auth, no multi-tenant storage, no CRM integration — all explicitly Phase 1+
   per the PRD roadmap (section 9).

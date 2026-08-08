@@ -1,0 +1,22 @@
+{
+  "id": "call_06_clean_close",
+  "description": "Straightforward positive call, no objections. Tests that extraction doesn't hallucinate an objection just because the call is long enough to expect one.",
+  "transcript": [
+    {"speaker": "rep", "start": 0.0, "end": 4.0, "text": "Hi Khalid, how did the second viewing feel compared to the first?"},
+    {"speaker": "customer", "start": 4.5, "end": 8.0, "text": "Honestly better. I think this is the one. The kitchen layout works well for us."},
+    {"speaker": "rep", "start": 8.5, "end": 12.0, "text": "That's great to hear. Do you want to move ahead with an offer?"},
+    {"speaker": "customer", "start": 12.5, "end": 15.0, "text": "Yes, let's do it. What's the next step?"},
+    {"speaker": "rep", "start": 15.5, "end": 21.0, "text": "I'll draft the offer letter tonight and send it to you tomorrow morning for signature."},
+    {"speaker": "customer", "start": 21.5, "end": 23.0, "text": "Sounds good, I'll look out for it."}
+  ],
+  "ground_truth": {
+    "next_steps": [
+      {
+        "description": "Draft the offer letter and send it tomorrow morning for signature",
+        "owner": "rep",
+        "keywords": ["offer letter", "tomorrow"]
+      }
+    ],
+    "objections": []
+  }
+}

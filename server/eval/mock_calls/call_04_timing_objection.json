@@ -1,0 +1,27 @@
+{
+  "id": "call_04_timing_objection",
+  "description": "Clean timing objection with a specific future follow-up commitment.",
+  "transcript": [
+    {"speaker": "rep", "start": 0.0, "end": 4.0, "text": "Hi Omar, following up on the villa in Arabian Ranches you saw last week."},
+    {"speaker": "customer", "start": 4.5, "end": 10.0, "text": "It was great, but we're actually not looking to buy for another six months. Our lease doesn't end until then."},
+    {"speaker": "rep", "start": 10.5, "end": 15.0, "text": "That makes sense. Would it help if I kept an eye on similar villas and reached out closer to your lease end?"},
+    {"speaker": "customer", "start": 15.5, "end": 18.0, "text": "Yes, that would be helpful. Maybe reach out in January."},
+    {"speaker": "rep", "start": 18.5, "end": 22.0, "text": "I'll set a reminder and follow up with you in the first week of January."},
+    {"speaker": "customer", "start": 22.5, "end": 24.0, "text": "Perfect, thank you."}
+  ],
+  "ground_truth": {
+    "next_steps": [
+      {
+        "description": "Follow up with the customer in the first week of January",
+        "owner": "rep",
+        "keywords": ["follow up", "January"]
+      }
+    ],
+    "objections": [
+      {
+        "category": "timing",
+        "keywords": ["not looking to buy for another six months", "lease doesn't end"]
+      }
+    ]
+  }
+}

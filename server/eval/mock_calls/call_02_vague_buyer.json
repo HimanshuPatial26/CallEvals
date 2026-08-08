@@ -1,0 +1,24 @@
+{
+  "id": "call_02_vague_buyer",
+  "description": "Non-committal buyer — only a soft follow-up commitment, no clean price/timing/competitor objection. Tests whether extraction stays quiet on objections instead of inventing one, since false positives are exactly what erodes manager trust (PRD section 10).",
+  "transcript": [
+    {"speaker": "rep", "start": 0.0, "end": 4.0, "text": "Hi Fatima, how did the viewing go on Thursday?"},
+    {"speaker": "customer", "start": 4.5, "end": 8.0, "text": "It was fine. I'm still not sure, honestly. I'm looking at a few areas."},
+    {"speaker": "rep", "start": 8.5, "end": 12.0, "text": "Sure, no rush. What other areas are you considering?"},
+    {"speaker": "customer", "start": 12.5, "end": 17.0, "text": "Maybe JVC, maybe Business Bay. I haven't really decided anything yet."},
+    {"speaker": "rep", "start": 17.5, "end": 21.0, "text": "Would it help if I sent a few more options in those areas?"},
+    {"speaker": "customer", "start": 21.5, "end": 25.0, "text": "Maybe later. I'm not really looking to move fast on this right now."},
+    {"speaker": "rep", "start": 25.5, "end": 28.0, "text": "No problem, I'll check in with you in a few weeks."},
+    {"speaker": "customer", "start": 28.5, "end": 30.0, "text": "Sure, that works."}
+  ],
+  "ground_truth": {
+    "next_steps": [
+      {
+        "description": "Check in with the customer in a few weeks",
+        "owner": "rep",
+        "keywords": ["check in", "few weeks"]
+      }
+    ],
+    "objections": []
+  }
+}

@@ -521,16 +521,28 @@ key raises, a successful response maps correctly including
 segment-index→timestamp resolution, the request is sent with the configured
 model and JSON mode, malformed JSON content raises, JSON that doesn't match
 the wire shape raises a `pydantic.ValidationError`, and a non-2xx response
-propagates as `httpx.HTTPStatusError`) — all against a mocked `httpx.post`,
-same pattern as the existing Deepgram tests, no network call. **Not yet
-verified against the real Groq API** — this sandbox has no `GROQ_API_KEY`
-to test against live, so unlike Gemini and Deepgram (both confirmed working
-end to end against real APIs earlier in this README's "Known limitations"
-section), Groq's actual response shape/behavior in production is
-unconfirmed. If you add a real key: run a call through with
-`EXTRACTION_PROVIDER=groq` and compare the resulting `CallDetail` review
-against what Gemini produces for the same audio before trusting it for real
-review work.
+raises with the response body included, not just the status code) — all
+against a mocked `httpx.post`, same pattern as the existing Deepgram tests,
+no network call. **Not verified against the real Groq API, and this
+sandbox cannot reach one to fix that** — its outbound proxy blocks
+`api.groq.com` and `console.groq.com` outright (policy denial, confirmed
+via the proxy's own status endpoint and a blocked `WebFetch`), so unlike
+Gemini and Deepgram (both confirmed working end to end against real APIs
+earlier in this README's "Known limitations" section), nobody building
+from this environment can independently verify Groq's response
+shape/behavior, or even check whether `GROQ_MODEL`'s default
+(`llama-3.3-70b-versatile`) is still a live model id — Groq retires/renames
+model ids over time. **A real user hit exactly this**: `404 Not Found` from
+`api.groq.com/openai/v1/chat/completions`, which read as a broken
+integration but was actually `response.raise_for_status()` dropping the
+response body — the one place Groq puts the actual reason (most likely
+`model_decommissioned`, Groq's real error code for a retired model, though
+this couldn't be confirmed from here). Fixed to raise with the full
+response body included. If you hit this: check
+https://console.groq.com/docs/models for the current model list and update
+`GROQ_MODEL` in `.env` — this repo's default may be stale by the time you
+read this, and there's no way to keep it current without network access to
+Groq.
 
 ## Lead pipeline (2026-08-08) — Kanban board, ROADMAP.md C5
 

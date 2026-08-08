@@ -20,6 +20,13 @@ the schema here — a shape-mismatched response fails loudly as a
 ValidationError instead of silently becoming wrong data. Uses plain httpx
 (already a dependency, same pattern as app/asr/deepgram_provider.py)
 instead of pulling in the groq/openai SDK for one endpoint.
+
+On a non-2xx response, the error raised includes the response body, not
+just the status code — Groq puts the actionable detail there (e.g. a 404
+with `"code": "model_decommissioned"` when GROQ_MODEL names a retired
+model, which otherwise reads identically to a wrong-URL 404). Groq rotates
+model ids over time; check https://console.groq.com/docs/models for the
+current list rather than trusting .env.example's default forever.
 """
 
 import json
@@ -81,7 +88,12 @@ class GroqExtractor(ExtractionProvider):
             },
             timeout=60.0,
         )
-        response.raise_for_status()
+        if response.is_error:
+            # response.raise_for_status() alone drops the response body --
+            # exactly the part that says *why* (e.g. Groq returns 404 with a
+            # "model_decommissioned" body for a retired model id, which
+            # reads identically to a wrong-URL 404 without this).
+            raise RuntimeError(f"Groq API error {response.status_code} calling {GROQ_CHAT_COMPLETIONS_URL}: {response.text}")
         content = response.json()["choices"][0]["message"]["content"]
         wire = WireExtractionResult.model_validate(json.loads(content))
         return wire_to_extraction_result(wire, transcript)

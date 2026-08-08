@@ -132,9 +132,14 @@ def test_json_not_matching_wire_shape_raises_validation_error(groq_key, monkeypa
 
 
 def test_http_error_status_propagates(groq_key, monkeypatch):
+    """Regression test: response.raise_for_status() alone raises with only
+    the status code in the message, dropping the response body -- which is
+    exactly where Groq puts the actionable detail (e.g. "model
+    decommissioned" for a retired model id). The error message must
+    include the body, not just the status."""
     from app.extraction.groq_extractor import GroqExtractor
 
-    _mock_response(monkeypatch, "unauthorized", status_code=401)
+    _mock_response(monkeypatch, '{"error": {"message": "model decommissioned", "code": "model_decommissioned"}}', status_code=404)
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(RuntimeError, match="model_decommissioned"):
         GroqExtractor().extract(TRANSCRIPT)

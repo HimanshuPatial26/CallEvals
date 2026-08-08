@@ -34,9 +34,15 @@ def _get_model() -> WhisperModel:
 
 def _transcribe_track(audio: np.ndarray, sample_rate: int, speaker: Speaker) -> list[TranscriptSegment]:
     model = _get_model()
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
-        sf.write(tmp.name, audio, sample_rate)
-        segments, _info = model.transcribe(tmp.name, vad_filter=True)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # A plain temp path inside a temp directory, not tempfile.NamedTemporaryFile —
+        # NamedTemporaryFile keeps its own handle open on the file, and soundfile
+        # opening that same path a second time to write to it works on Linux/Mac
+        # (multiple handles to one path are fine there) but fails outright on
+        # Windows, which locks the file against a second opener.
+        tmp_path = Path(tmp_dir) / "track.wav"
+        sf.write(str(tmp_path), audio, sample_rate)
+        segments, _info = model.transcribe(str(tmp_path), vad_filter=True)
         return [
             TranscriptSegment(speaker=speaker, start=seg.start, end=seg.end, text=seg.text.strip())
             for seg in segments

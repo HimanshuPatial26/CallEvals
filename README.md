@@ -170,19 +170,30 @@ they run without network access, an API key, or a downloaded Whisper model.
 
 ## Known limitations / not yet verified
 
-- **Neither ASR path has completed a real transcription through this app.** The
-  dev sandbox this was built in blocks both `huggingface.co`
-  (faster-whisper's model download) and `api.deepgram.com` at the
-  network-policy level, so a real upload fails at the ASR step no matter which
-  provider is configured — confirmed by actually trying both, not assumed.
-  Deepgram's real response shape *has* been checked against a live call
-  (outside this sandbox) and matches what `deepgram_provider.py` parses
-  exactly (`results.utterances[].{start,end,channel,transcript}`) — but that
-  test call was mono, so the multichannel `channel: 0 → rep` / `channel: 1 →
-  customer` mapping is still unexercised against a real payload. faster-whisper
-  has no live confirmation at all yet. Do one real dual-channel upload
-  somewhere without the network restriction before trusting F1 fully on
-  either provider.
+- **Neither ASR path has completed a real transcription through this app from
+  inside the original dev sandbox.** That sandbox blocks both
+  `huggingface.co` (faster-whisper's model download) and `api.deepgram.com`
+  at the network-policy level, so a real upload fails at the ASR step no
+  matter which provider is configured there — confirmed by actually trying
+  both, not assumed. Both providers have since been exercised for real
+  outside that sandbox, on a real Windows machine, and both surfaced real
+  bugs that only showed up under those conditions:
+  - **Deepgram**: response shape confirmed live and matches what
+    `deepgram_provider.py` parses (`results.utterances[].{start,end,channel,transcript}`).
+    Also surfaced a real-world failure mode: a "stereo" recording where both
+    speakers were mixed onto one channel and the other was silent, so
+    `multichannel=true` couldn't actually separate them. Fixed with a
+    diarization fallback for that specific case — see `deepgram_provider.py`.
+    Not yet confirmed: a file where `multichannel=true` genuinely produces
+    two populated channels.
+  - **faster-whisper**: first real run on Windows failed immediately —
+    `Error opening '...': System error.` — because `_transcribe_track` wrote
+    the audio via `tempfile.NamedTemporaryFile`, which keeps its own handle
+    open on the file. `soundfile` opening that same path a second time to
+    write to it works on Linux/Mac (multiple handles to one path are fine
+    there) but Windows locks the file against a second opener. Fixed by
+    switching to a plain path inside a `TemporaryDirectory` instead. Not yet
+    confirmed: a successful end-to-end transcription after that fix.
 - **Gemini extraction is verified live**, not simulated, and iterated on
   live. Two real bugs surfaced only once a real API key was used, not before:
   `google-genai==0.6.0` (originally pinned) builds a `$ref`/`$defs`-based JSON

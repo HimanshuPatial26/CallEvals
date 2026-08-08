@@ -2,6 +2,7 @@ import { useState } from "react";
 import TranscriptView from "./TranscriptView";
 import NextStepsPanel from "./NextStepsPanel";
 import ObjectionTags from "./ObjectionTags";
+import CallInsightsPanel from "./CallInsightsPanel";
 
 export default function CallDetail({ call, onFeedbackChange }) {
   const [highlightTimestamp, setHighlightTimestamp] = useState(null);
@@ -40,6 +41,9 @@ export default function CallDetail({ call, onFeedbackChange }) {
             onJumpToTimestamp={setHighlightTimestamp}
             onFeedbackChange={onFeedbackChange}
           />
+
+          <h3>Call insights</h3>
+          <CallInsightsPanel insights={call.insights} />
         </section>
 
         <section className="panel">

@@ -56,6 +56,36 @@ class ExtractionResult(BaseModel):
     objections: list[Objection] = Field(default_factory=list)
 
 
+class CallInsights(BaseModel):
+    """Objective, transcript-derived behavior signals — pure computation over
+    segment timestamps and text, no LLM call, no added cost, no score.
+
+    Deliberately NOT a composite number: PRD section 5 rejected single-score
+    call scoring for getting gamed and reading as surveillance to reps. These
+    are individual, factual readouts a manager looks at and decides what (if
+    anything) to coach on — same "flags, not scores" philosophy the PRD
+    already applies to next-step and objection extraction.
+
+    Only computed when the transcript actually distinguishes rep from
+    customer (dual-channel, or a diarized call) — a mono call with every
+    segment labeled Speaker.UNKNOWN has nothing to compute this from.
+    """
+
+    rep_talk_time_ratio: float = Field(
+        ge=0.0, le=1.0, description="Share of total speaking time (rep + customer) that was the rep"
+    )
+    longest_rep_monologue_seconds: float = Field(
+        description="Longest uninterrupted stretch of consecutive rep turns"
+    )
+    rep_questions_asked: int = Field(
+        description="Rep segments containing '?' — a heuristic count, not a verified discovery-question intent"
+    )
+    customer_questions_asked: int = Field(description="Same heuristic, applied to customer segments")
+    interruption_count: int = Field(
+        description="Adjacent segments where the next speaker started before the previous one finished, either direction"
+    )
+
+
 class ReviewFeedback(BaseModel):
     """Manager confirm/reject on an extracted next step or objection.
 
@@ -75,6 +105,7 @@ class CallRecord(BaseModel):
     created_at: datetime
     transcript: list[TranscriptSegment] = Field(default_factory=list)
     extraction: ExtractionResult | None = None
+    insights: CallInsights | None = None
     feedback: list[ReviewFeedback] = Field(default_factory=list)
     status: str = Field(default="processing", description="processing | done | failed")
     error: str | None = None

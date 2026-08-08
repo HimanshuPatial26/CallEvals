@@ -142,6 +142,32 @@ body {
   padding: 0;
 }
 
+.insights-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.insights-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+
+.insights-list li:last-child {
+  border-bottom: none;
+}
+
+.insights-label {
+  color: #555;
+}
+
+.insights-value {
+  font-weight: 600;
+}
+
 .extracted-item {
   padding: 0.6rem 0;
   border-bottom: 1px solid #eee;

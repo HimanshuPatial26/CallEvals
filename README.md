@@ -65,6 +65,25 @@ CPU/GPU cost, and likely a Hugging Face token for a gated model. Not done;
 dual-channel audio through faster-whisper still gets real rep/customer labels
 via the local channel split, same as always.
 
+## Call insights (agent/customer behavior signals)
+
+Beyond F2–F4, each call gets a small set of objective, transcript-derived
+behavior readouts — rep talk-time share, longest uninterrupted rep
+monologue, questions asked per side, interruption count. All computed
+directly from segment timestamps and text (`app/insights.py`), not via an
+LLM call, so there's no added cost and no new precision risk.
+
+Deliberately **not** a combined score: the PRD (section 5) rejected
+single-number call scoring outright — "gets gamed... reads as
+surveillance" — and this follows the same "flags, not scores" pattern
+already used for next-step and objection extraction. Each stat is shown to
+the manager individually, with no color-coding, ranking, or pass/fail
+framing; what (if anything) to coach on is their call, not the tool's.
+
+Only computed when the transcript actually distinguishes rep from customer
+— a mono call with no diarization has nothing to compute these from, and
+the UI says so plainly rather than showing zeros.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

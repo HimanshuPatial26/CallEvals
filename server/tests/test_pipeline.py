@@ -49,6 +49,8 @@ def test_process_call_succeeds():
     assert record.transcript[0].text == "hello"
     assert record.extraction.summary == "test summary"
     assert record.extraction.next_steps[0].owner == Speaker.REP
+    assert record.insights is not None
+    assert record.insights.rep_talk_time_ratio == 1.0
 
 
 def test_process_call_records_failure_instead_of_raising():
@@ -56,3 +58,4 @@ def test_process_call_records_failure_instead_of_raising():
 
     assert record.status == "failed"
     assert "boom" in record.error
+    assert record.insights is None

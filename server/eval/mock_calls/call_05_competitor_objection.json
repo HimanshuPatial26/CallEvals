@@ -1,0 +1,27 @@
+{
+  "id": "call_05_competitor_objection",
+  "description": "Customer is being courted by a competing brokerage. Tests the competitor category specifically.",
+  "transcript": [
+    {"speaker": "rep", "start": 0.0, "end": 4.0, "text": "Hi Layla, just checking in after the Downtown viewing on Monday."},
+    {"speaker": "customer", "start": 4.5, "end": 11.0, "text": "Yes, it was nice, but another agent from a different agency has been sending me units in the same building for less, so I'm comparing right now."},
+    {"speaker": "rep", "start": 11.5, "end": 17.0, "text": "That's fair to check. Can you share what unit and price they quoted so I can see if it's a fair comparison?"},
+    {"speaker": "customer", "start": 17.5, "end": 21.0, "text": "It's a similar 1-bed, they quoted around 1.5 million."},
+    {"speaker": "rep", "start": 21.5, "end": 28.0, "text": "Got it. I'll pull the transaction history for that building so you can see actual closed prices, not just asking prices, and send it over today."},
+    {"speaker": "customer", "start": 28.5, "end": 30.0, "text": "Okay, that would help."}
+  ],
+  "ground_truth": {
+    "next_steps": [
+      {
+        "description": "Send transaction history for the building",
+        "owner": "rep",
+        "keywords": ["transaction history"]
+      }
+    ],
+    "objections": [
+      {
+        "category": "competitor",
+        "keywords": ["another agent", "different agency", "for less"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "call_03_rep_talks_too_much",
+  "description": "Rep monologues for most of the call; one real commitment is buried in the middle. Tests extraction against a long single-speaker block instead of clean back-and-forth turns.",
+  "transcript": [
+    {"speaker": "rep", "start": 0.0, "end": 6.0, "text": "Hi Sara, so I wanted to walk you through everything about Emaar Beachfront because there's a lot happening there right now."},
+    {"speaker": "rep", "start": 6.5, "end": 15.0, "text": "The developer just released phase two, prices are still pre-launch, the marina views are incredible, and there's a payment plan that's 60-40 post-handover which is honestly one of the best in the market right now."},
+    {"speaker": "rep", "start": 15.5, "end": 24.0, "text": "Also the amenities are fully resort-style, there's a private beach, and the handover is expected end of next year, so if you're thinking long-term investment this is genuinely one of the strongest options I've seen this quarter."},
+    {"speaker": "customer", "start": 24.5, "end": 26.0, "text": "Okay, that's a lot. Can you just send me the brochure?"},
+    {"speaker": "rep", "start": 26.5, "end": 34.0, "text": "Of course, and honestly I'd also recommend looking at the floor plans because the 1-bed layout there is more efficient than most comparable buildings, but yes, I'll send the brochure and the floor plans today."},
+    {"speaker": "customer", "start": 34.5, "end": 36.0, "text": "Great, thanks."}
+  ],
+  "ground_truth": {
+    "next_steps": [
+      {
+        "description": "Send the brochure and floor plans",
+        "owner": "rep",
+        "keywords": ["brochure", "floor plans"]
+      }
+    ],
+    "objections": []
+  }
+}

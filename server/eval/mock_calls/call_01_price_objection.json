@@ -1,0 +1,29 @@
+{
+  "id": "call_01_price_objection",
+  "description": "Clear price objection, then a specific rep commitment.",
+  "transcript": [
+    {"speaker": "rep", "start": 0.0, "end": 4.0, "text": "Hi Ahmed, thanks for making time. You saw the 2-bed in Marina Gate on Sunday, right?"},
+    {"speaker": "customer", "start": 4.5, "end": 9.0, "text": "Yes, I liked the layout, but honestly 2.4 million feels too expensive for that size."},
+    {"speaker": "rep", "start": 9.5, "end": 14.0, "text": "That's fair. Can I ask what range you were expecting for a 2-bed in that building?"},
+    {"speaker": "customer", "start": 14.5, "end": 19.0, "text": "Closer to 2 million. Anything above that and it's over my budget."},
+    {"speaker": "rep", "start": 19.5, "end": 27.0, "text": "Understood. There's a similar unit on a lower floor listed at 2.05 million, and the developer has a payment plan that might close that gap. Let me pull the numbers."},
+    {"speaker": "customer", "start": 27.5, "end": 31.0, "text": "Okay, if the payment plan makes sense I'd look at that one."},
+    {"speaker": "rep", "start": 31.5, "end": 37.0, "text": "I'll send you the payment plan breakdown and the lower-floor unit details by tomorrow morning."},
+    {"speaker": "customer", "start": 37.5, "end": 39.0, "text": "Sounds good, talk then."}
+  ],
+  "ground_truth": {
+    "next_steps": [
+      {
+        "description": "Send payment plan breakdown and lower-floor unit details",
+        "owner": "rep",
+        "keywords": ["payment plan", "lower-floor", "unit"]
+      }
+    ],
+    "objections": [
+      {
+        "category": "price",
+        "keywords": ["2.4 million", "too expensive", "over my budget", "2 million"]
+      }
+    ]
+  }
+}

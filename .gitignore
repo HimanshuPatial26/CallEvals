@@ -1,0 +1,17 @@
+# Python
+server/.venv/
+server/**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets
+server/.env
+*.env
+!.env.example
+
+# Runtime data (uploaded audio, transcripts, extraction results)
+server/data/
+
+# OS / editor
+.DS_Store
+*.swp

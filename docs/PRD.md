@@ -219,6 +219,13 @@ No vector database at MVP. The earlier draft included one, and it belongs in Pha
 
 **Phase 3 — Predict.** Call scoring and deal risk, once labeled outcomes exist. Expanded objection taxonomy. Second vertical — automotive or insurance telesales.
 
+**Addendum (2026-08-08) — engineering roadmap for the CALL → AGENT → TEAM →
+ORGANIZATION hierarchy at ~100-agent scale.** The business-milestone phases
+above (0–3) don't have enough resolution for "what needs to be built, in
+what order, to go from today's agent-level rollup to a real org-wide
+product with lead attribution and CRM-grade conversion." That's a separate,
+detailed line-item roadmap: [docs/ROADMAP.md](ROADMAP.md).
+
 ---
 
 ## 10. Risks

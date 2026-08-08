@@ -259,6 +259,14 @@ exercised against a *real* multi-call dataset is the full pipeline end to
 end at this volume (12+ calls through actual ASR + Gemini extraction) —
 that's a quota/budget question, not a correctness one.
 
+**What this layer is not, yet:** a TEAM or ORGANIZATION rollup, or a real
+lead entity — every call is still attributed to a free-text agent name with
+no roster, no manager, no team, and outcome tagging lives on the call, not
+on a lead that can span many calls. The path from here to a real
+CALL → AGENT → TEAM → ORGANIZATION product at ~100-agent scale, with calls
+attributed to leads and CRM-grade conversion metrics, is
+[docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

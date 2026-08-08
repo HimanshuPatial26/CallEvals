@@ -37,10 +37,19 @@ async def upload_call(
 ) -> CallRecord:
     if not file.filename:
         raise HTTPException(status_code=400, detail="File must have a filename")
+    lead_id = lead_id.strip()
+    if not lead_id:
+        raise HTTPException(status_code=400, detail="lead_id is required — every call must be attributed to a lead")
     if roster_storage.load_agent(agent_id) is None:
         raise HTTPException(status_code=400, detail=f"agent_id {agent_id!r} does not exist in the roster")
-    if lead_storage.load(lead_id) is None:
-        raise HTTPException(status_code=400, detail=f"lead_id {lead_id!r} does not exist — create the lead first via POST /api/leads")
+
+    # agent_id stays a strict roster lookup (a managed list), but lead_id is
+    # caller-chosen and free-form on purpose — a manager can type a phone
+    # number, a CRM deal ID, or anything else they already use to track a
+    # prospect. First use creates the Lead; reusing the same id on a later
+    # call attributes it to the same one, which is the whole point of Lead
+    # existing separately from Call.
+    lead_storage.get_or_create(lead_id, assigned_agent_id=agent_id)
 
     call_id = str(uuid.uuid4())
     audio_path = storage.audio_path_for(call_id, file.filename)

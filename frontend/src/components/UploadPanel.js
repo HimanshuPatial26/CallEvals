@@ -3,10 +3,12 @@ import { listAgents, uploadCall } from "../api/client";
 
 const LAST_AGENT_KEY = "callevals.lastAgentId";
 
-// Lead attribution is a plain lead_id field, not a search/create widget —
-// leads are created via the API for now (ROADMAP.md Phase A decision).
-// Agent is a real roster dropdown, not free text, since agent_id must
-// reference an existing Agent record.
+// Lead attribution is a plain lead_id field, not a search/create widget.
+// Any value works — a phone number, a CRM deal ID, whatever a manager
+// already uses to track a prospect. First use creates the Lead; reusing
+// the same value on a later call attributes it to the same one. Agent is
+// a real roster dropdown, not free text, since agent_id must reference an
+// existing Agent record.
 export default function UploadPanel({ onUploaded }) {
   const [agents, setAgents] = useState([]);
   const [agentId, setAgentId] = useState(() => localStorage.getItem(LAST_AGENT_KEY) || "");
@@ -34,7 +36,7 @@ export default function UploadPanel({ onUploaded }) {
       return;
     }
     if (!leadId.trim()) {
-      setError("Enter a lead ID before uploading — every call needs a lead attributed to it (create one via POST /api/leads).");
+      setError("Enter a lead ID before uploading — every call needs a lead attributed to it. Any value works; it'll be created if it's new.");
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
@@ -74,7 +76,7 @@ export default function UploadPanel({ onUploaded }) {
         id="lead-id-input"
         type="text"
         className="agent-name-input"
-        placeholder="Existing lead's ID"
+        placeholder="Any ID — phone number, deal ID, anything"
         value={leadId}
         onChange={(e) => setLeadId(e.target.value)}
         disabled={busy}

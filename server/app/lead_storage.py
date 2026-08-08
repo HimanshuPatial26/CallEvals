@@ -34,6 +34,28 @@ def list_all() -> list[Lead]:
     return sorted(leads, key=lambda l: l.created_at, reverse=True)
 
 
+def get_or_create(lead_id: str, assigned_agent_id: str | None) -> Lead:
+    """Used by call upload — the caller picks the lead_id (any string they
+    want, e.g. a phone number or a CRM deal ID they already track), and it's
+    unique by construction: the same id reused on a later call resolves to
+    the same Lead here rather than creating a duplicate. First use creates a
+    placeholder Lead (display_name defaults to the id itself); a manager can
+    fill in the real name/phone/source later via PATCH-equivalent calls to
+    POST /api/leads/{id}/stage or by editing the record directly — there's
+    no dedicated "rename a lead" endpoint yet."""
+    existing = load(lead_id)
+    if existing is not None:
+        return existing
+    lead = Lead(
+        id=lead_id,
+        display_name=f"Lead {lead_id}",
+        assigned_agent_id=assigned_agent_id,
+        created_at=datetime.now(timezone.utc),
+    )
+    save(lead)
+    return lead
+
+
 def set_stage(lead_id: str, stage: FunnelStage, deal_size_aed: float | None, changed_by: str | None) -> Lead | None:
     lead = load(lead_id)
     if lead is None:

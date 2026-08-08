@@ -287,6 +287,25 @@ before this pass and everything else in this section depends on them:
   audit trail (who set it, when) rather than a value that silently
   overwrites itself.
 
+**Addendum (2026-08-08) — `lead_id` no longer has to already exist.** The
+first version of this required calling `POST /api/leads` before you could
+upload a call against it, on the theory that "API-only for now" was an
+acceptable stopgap without a lead-creation UI. In practice that was pure
+friction — a manager typing an arbitrary tracking number into the upload
+form got a 400 telling them to go create the lead first, for no benefit.
+`lead_id` is now caller-chosen and free-form: type a phone number, a CRM
+deal ID, or anything else you already use to track a prospect, and
+`lead_storage.get_or_create` makes it a real `Lead` on first use
+(`display_name` defaults to `"Lead {id}"`, `assigned_agent_id` defaults to
+whoever uploaded it). Reusing the same value on a later call attributes it
+to the same lead rather than creating a duplicate — that's the "unique"
+part, and it's exactly the behavior the `Lead` entity existing separately
+from `Call` was for in the first place. `agent_id` did **not** get the same
+treatment and still requires a real roster entry — an agent is a managed
+list a manager actually curates; a lead identifier is whatever a manager
+is already using to track a prospect, which this app has no business
+gatekeeping.
+
 **The one correctness property that actually matters here, and is
 unit-tested directly:** a lead currently sitting at "won" only counts
 toward a period's `conversion_rate_pct` if its `stage_history` shows it

@@ -42,3 +42,22 @@ def test_set_stage_without_deal_size_keeps_existing_value():
 
     updated = lead_storage.set_stage("lead-3", FunnelStage.WON, None, None)
     assert updated.deal_size_aed == 250000.0
+
+
+def test_get_or_create_creates_a_new_lead_with_the_given_id():
+    lead = lead_storage.get_or_create("phone-971500000000", assigned_agent_id="agent-1")
+    assert lead.id == "phone-971500000000"
+    assert lead.assigned_agent_id == "agent-1"
+    assert lead_storage.load("phone-971500000000") == lead
+
+
+def test_get_or_create_returns_the_existing_lead_without_duplicating():
+    original = lead_storage.get_or_create("shared-id", assigned_agent_id="agent-1")
+    original_stage_history_len = len(original.stage_history)
+
+    lead_storage.set_stage("shared-id", FunnelStage.QUALIFIED, None, "agent-1")
+    reused = lead_storage.get_or_create("shared-id", assigned_agent_id="agent-2")
+
+    assert reused.id == original.id
+    assert reused.stage == FunnelStage.QUALIFIED  # reflects the stage change, not a fresh record
+    assert len(reused.stage_history) == original_stage_history_len + 1

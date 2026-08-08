@@ -38,11 +38,11 @@ export default function AgentQualityTrendPanel({ distribution, consistency, tren
           <h3 style={{ margin: 0 }}>Weekly trend</h3>
           <div className="chart-legend">
             <span className="chart-legend-item">
-              <span className="chart-legend-swatch" style={{ background: "#c084fc" }} />
+              <span className="chart-legend-swatch" style={{ background: "#f0923e" }} />
               SCORE
             </span>
             <span className="chart-legend-item">
-              <span className="chart-legend-swatch dashed" style={{ borderColor: "#22d3ee" }} />
+              <span className="chart-legend-swatch dashed" style={{ borderColor: "#7fa39d" }} />
               CONVERSION
             </span>
           </div>

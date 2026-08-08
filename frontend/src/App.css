@@ -1,24 +1,36 @@
 :root {
-  --bg-base: #06050e;
-  --bg-panel: linear-gradient(160deg, rgba(139, 92, 246, 0.09), rgba(11, 9, 24, 0.74));
-  --bg-panel-solid: rgba(14, 11, 28, 0.88);
-  --bg-inset: rgba(6, 4, 16, 0.5);
-  --bg-hover: rgba(139, 92, 246, 0.1);
+  /* Amber Ledger -- direct palette pull from the reference clip: near-black
+     teal-tinted surfaces, a deep teal ambient void, one amber/orange accent
+     carrying every active/brand moment. --accent-purple* variable names are
+     kept (touched throughout this file) but now hold the amber values --
+     renaming ~200 call sites wasn't worth it for a values-only swap. */
+  --bg-base: #0a1213;
+  --bg-panel: linear-gradient(160deg, rgba(240, 146, 62, 0.08), rgba(9, 18, 19, 0.78));
+  --bg-panel-solid: rgba(13, 24, 26, 0.9);
+  --bg-inset: rgba(6, 13, 14, 0.55);
+  --bg-hover: rgba(240, 146, 62, 0.1);
 
-  --border: rgba(139, 92, 246, 0.2);
-  --border-strong: rgba(168, 85, 247, 0.4);
-  --border-soft: rgba(139, 92, 246, 0.1);
+  --border: rgba(240, 146, 62, 0.2);
+  --border-strong: rgba(240, 146, 62, 0.42);
+  /* Neutral hairline/wash, deliberately NOT amber -- amber now means
+     "active/brand," so purely structural borders and "neutral state" chips
+     (sentiment-neutral, compliance-N/A, etc.) use this teal-grey instead. */
+  --border-soft: rgba(148, 178, 175, 0.14);
 
-  --text-primary: #ede9fe;
-  --text-secondary: #a79ed0;
-  --text-muted: #7c72a8;
-  --text-faint: #5f5788;
+  --text-primary: #eef4f2;
+  --text-secondary: #9db6b3;
+  --text-muted: #6f8b88;
+  --text-faint: #56716e;
 
-  --accent-purple: #a855f7;
-  --accent-purple-bright: #c084fc;
-  --accent-violet: #7c3aed;
-  --accent-cyan: #22d3ee;
-  --accent-cyan-bright: #67e8f9;
+  --accent-purple: #f0923e;
+  --accent-purple-bright: #ffb066;
+  --accent-violet: #d9752c;
+  /* Kept as a genuine second hue (not repointed to amber): the video's own
+     ambient glow is teal, and this also carries the dual-line chart's
+     secondary series and the objection-tag category palette, which need
+     more than one hue to stay scannable. */
+  --accent-cyan: #2dd4bf;
+  --accent-cyan-bright: #5eead4;
   --accent-magenta: #d946ef;
   --accent-green: #4ade80;
   --accent-amber: #fbbf24;
@@ -32,10 +44,10 @@
   --radius-lg: 16px;
   --radius-full: 999px;
 
-  --glow-purple: 0 0 24px rgba(168, 85, 247, 0.35);
-  --glow-purple-soft: 0 0 14px rgba(168, 85, 247, 0.22);
-  --shadow-panel: 0 18px 40px rgba(4, 2, 12, 0.4);
-  --shadow-modal: 0 28px 70px rgba(0, 0, 0, 0.6), 0 0 60px rgba(168, 85, 247, 0.18);
+  --glow-purple: 0 0 24px rgba(240, 146, 62, 0.4);
+  --glow-purple-soft: 0 0 14px rgba(240, 146, 62, 0.25);
+  --shadow-panel: 0 18px 40px rgba(3, 7, 8, 0.45);
+  --shadow-modal: 0 28px 70px rgba(0, 0, 0, 0.6), 0 0 60px rgba(240, 146, 62, 0.2);
 
   --transition-fast: 120ms ease;
   --transition: 180ms ease;
@@ -57,9 +69,9 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "tnum" 1;
-  background: radial-gradient(1100px 620px at 12% -10%, rgba(124, 58, 237, 0.28), transparent 60%),
-    radial-gradient(900px 520px at 88% 4%, rgba(56, 189, 248, 0.12), transparent 62%),
-    radial-gradient(700px 700px at 60% 110%, rgba(217, 70, 239, 0.14), transparent 60%), var(--bg-base);
+  background: radial-gradient(1100px 620px at 12% -10%, rgba(31, 76, 73, 0.5), transparent 60%),
+    radial-gradient(900px 520px at 88% 4%, rgba(240, 146, 62, 0.1), transparent 62%),
+    radial-gradient(700px 700px at 60% 110%, rgba(18, 51, 49, 0.35), transparent 60%), var(--bg-base);
   background-attachment: fixed;
 }
 
@@ -76,7 +88,7 @@ a {
 }
 
 a:hover {
-  color: #e9d5ff;
+  color: #ffd9ad;
 }
 
 ::-webkit-scrollbar {
@@ -85,7 +97,7 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.35);
+  background: rgba(240, 146, 62, 0.35);
   border-radius: 8px;
 }
 
@@ -148,7 +160,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 26px;
-  background: linear-gradient(180deg, rgba(20, 14, 40, 0.72), rgba(8, 6, 18, 0.4));
+  background: linear-gradient(180deg, rgba(14, 26, 27, 0.75), rgba(6, 12, 13, 0.45));
   backdrop-filter: blur(18px);
   position: sticky;
   top: 0;
@@ -166,15 +178,15 @@ a:hover {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent-purple), #6366f1);
-  box-shadow: 0 0 22px rgba(168, 85, 247, 0.55);
+  background: linear-gradient(135deg, var(--accent-purple), #c9691f);
+  box-shadow: 0 0 22px rgba(240, 146, 62, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
   font-weight: 600;
   font-size: 14px;
-  color: #0b0718;
+  color: #1a0f05;
   flex-shrink: 0;
 }
 
@@ -224,20 +236,20 @@ a:hover {
 
 .side-nav button:hover {
   background: var(--bg-hover);
-  color: #f3eaff;
+  color: #fff1e0;
 }
 
 .side-nav button.active {
   border-color: var(--border-strong);
-  background: rgba(139, 92, 246, 0.2);
-  color: #f5edff;
+  background: rgba(240, 146, 62, 0.2);
+  color: #fff3e6;
 }
 
 .side-nav-dot {
   width: 6px;
   height: 6px;
   border-radius: 2px;
-  background: #4c4470;
+  background: #3a4d4b;
   flex-shrink: 0;
 }
 
@@ -261,7 +273,7 @@ a:hover {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px;
-  background: linear-gradient(155deg, rgba(139, 92, 246, 0.14), rgba(12, 10, 26, 0.6));
+  background: linear-gradient(155deg, rgba(240, 146, 62, 0.14), rgba(8, 15, 16, 0.6));
 }
 
 .model-status-head {
@@ -299,7 +311,7 @@ a:hover {
 }
 
 .model-status-text strong {
-  color: #e9d5ff;
+  color: #ffd9ad;
   font-weight: 600;
 }
 
@@ -307,7 +319,7 @@ a:hover {
   height: 3px;
   border-radius: 3px;
   margin-top: 11px;
-  background: rgba(139, 92, 246, 0.2);
+  background: rgba(240, 146, 62, 0.2);
   overflow: hidden;
   position: relative;
 }
@@ -333,7 +345,7 @@ a:hover {
   gap: 18px;
   padding: 18px 28px;
   border-bottom: 1px solid var(--border-soft);
-  background: rgba(9, 7, 20, 0.55);
+  background: rgba(7, 14, 15, 0.6);
   backdrop-filter: blur(16px);
   position: sticky;
   top: 0;
@@ -374,7 +386,7 @@ a:hover {
 }
 
 .assist-button:hover {
-  box-shadow: 0 0 38px rgba(168, 85, 247, 0.65);
+  box-shadow: 0 0 38px rgba(240, 146, 62, 0.65);
 }
 
 .assist-button-dot {
@@ -398,8 +410,8 @@ a:hover {
   width: 340px;
   z-index: 60;
   border-radius: 18px;
-  border: 1px solid rgba(168, 85, 247, 0.4);
-  background: linear-gradient(165deg, rgba(38, 20, 72, 0.96), rgba(9, 7, 20, 0.97));
+  border: 1px solid rgba(240, 146, 62, 0.4);
+  background: linear-gradient(165deg, rgba(19, 33, 35, 0.96), rgba(7, 14, 15, 0.97));
   backdrop-filter: blur(22px);
   box-shadow: var(--shadow-modal);
   overflow: hidden;
@@ -408,7 +420,7 @@ a:hover {
 
 .assist-panel-head {
   padding: 15px 17px;
-  border-bottom: 1px solid rgba(168, 85, 247, 0.22);
+  border-bottom: 1px solid rgba(240, 146, 62, 0.22);
   display: flex;
   align-items: center;
   gap: 9px;
@@ -418,7 +430,7 @@ a:hover {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.18em;
-  color: #c4b5fd;
+  color: #ffcf9e;
   flex: 1;
 }
 
@@ -510,7 +522,7 @@ a:hover {
 .agent-name-input:focus {
   outline: none;
   border-color: var(--accent-purple);
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18);
+  box-shadow: 0 0 0 3px rgba(240, 146, 62, 0.18);
 }
 
 .hint {
@@ -530,7 +542,7 @@ a:hover {
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  border: 2px solid rgba(139, 92, 246, 0.25);
+  border: 2px solid rgba(240, 146, 62, 0.25);
   border-top-color: var(--accent-purple-bright);
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -585,7 +597,7 @@ a:hover {
 }
 
 .call-list-item.selected {
-  background: rgba(168, 85, 247, 0.2);
+  background: rgba(240, 146, 62, 0.2);
   border: 1px solid var(--border-strong);
 }
 
@@ -712,7 +724,7 @@ a:hover {
 }
 
 .jump-link:hover {
-  color: #e9d5ff;
+  color: #ffd9ad;
   text-decoration: underline;
 }
 
@@ -744,7 +756,7 @@ a:hover {
 }
 
 .addressed-no {
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(148, 178, 175, 0.12);
   color: var(--text-secondary);
 }
 
@@ -797,9 +809,9 @@ a:hover {
 }
 
 .tag-contract {
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(148, 178, 175, 0.12);
   color: var(--text-secondary);
-  border-color: var(--border);
+  border-color: var(--border-soft);
 }
 
 .tag-switching_cost {
@@ -865,7 +877,7 @@ a:hover {
 }
 
 .transcript-segment.highlighted {
-  background: rgba(139, 92, 246, 0.14);
+  background: rgba(240, 146, 62, 0.14);
   border-left-color: var(--accent-purple-bright);
 }
 
@@ -961,9 +973,9 @@ a:hover {
 }
 
 .sentiment-neutral {
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(148, 178, 175, 0.12);
   color: var(--text-secondary);
-  border-color: var(--border);
+  border-color: var(--border-soft);
 }
 
 .sentiment-negative {
@@ -985,9 +997,9 @@ a:hover {
 }
 
 .intent-low {
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(148, 178, 175, 0.12);
   color: var(--text-secondary);
-  border-color: var(--border);
+  border-color: var(--border-soft);
 }
 
 .compliance-tag {
@@ -1018,7 +1030,7 @@ a:hover {
 }
 
 .compliance-not_applicable {
-  background: rgba(139, 92, 246, 0.1);
+  background: rgba(148, 178, 175, 0.1);
   color: var(--text-muted);
   border-color: var(--border-soft);
 }
@@ -1074,7 +1086,7 @@ a:hover {
 .outcome-field input:focus {
   outline: none;
   border-color: var(--accent-purple);
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18);
+  box-shadow: 0 0 0 3px rgba(240, 146, 62, 0.18);
 }
 
 .outcome-panel button {
@@ -1213,7 +1225,7 @@ a:hover {
 
 .quality-bar-track {
   flex: 1;
-  background: rgba(139, 92, 246, 0.14);
+  background: rgba(240, 146, 62, 0.14);
   border-radius: var(--radius-sm);
   height: 10px;
   overflow: hidden;
@@ -1323,7 +1335,7 @@ a:hover {
 }
 
 .link-button:hover {
-  color: #e9d5ff;
+  color: #ffd9ad;
   text-decoration: underline;
 }
 
@@ -1348,7 +1360,7 @@ a:hover {
 }
 
 .lead-column {
-  background: rgba(139, 92, 246, 0.05);
+  background: rgba(240, 146, 62, 0.05);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   flex: 0 0 250px;
@@ -1358,7 +1370,7 @@ a:hover {
 }
 
 .lead-column-drag-over {
-  background: rgba(139, 92, 246, 0.16);
+  background: rgba(240, 146, 62, 0.16);
   box-shadow: inset 0 0 0 2px var(--accent-purple);
 }
 
@@ -1452,7 +1464,7 @@ a:hover {
 }
 
 .lead-card-move {
-  background: rgba(139, 92, 246, 0.08);
+  background: rgba(240, 146, 62, 0.08);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -1469,7 +1481,7 @@ a:hover {
 }
 
 .lead-card-move:not(:disabled):hover {
-  background: rgba(168, 85, 247, 0.18);
+  background: rgba(240, 146, 62, 0.18);
   color: var(--accent-purple-bright);
 }
 
@@ -1477,7 +1489,7 @@ a:hover {
 
 .modal-overlay {
   align-items: center;
-  background: rgba(4, 2, 10, 0.65);
+  background: rgba(3, 7, 8, 0.68);
   backdrop-filter: blur(3px);
   bottom: 0;
   display: flex;

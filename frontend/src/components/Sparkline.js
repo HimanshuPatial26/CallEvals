@@ -1,7 +1,7 @@
 // Small inline trend line for a KPI tile. Real data only -- callers pass
 // whatever numeric series they actually have (e.g. weekly avg_score); no
 // synthetic/randomized data generation like the design reference used.
-export default function Sparkline({ points, tint = "#c084fc", width = 140, height = 26 }) {
+export default function Sparkline({ points, tint = "#ffb066", width = 140, height = 26 }) {
   if (!points || points.length < 2) {
     return <div style={{ height }} />;
   }

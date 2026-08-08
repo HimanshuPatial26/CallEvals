@@ -788,6 +788,58 @@ reviewed panel-by-panel against the previous theme's class list (`comm
 the shell restructure, with nothing else silently lost). Seeded
 `verify-reskin-*` calls/leads removed from `server/data/` afterward.
 
+### Palette swap (2026-08-08) — "Amber Ledger," a second reference clip
+
+A separate uploaded reference (a short promo clip for an unrelated crypto
+dashboard product) prompted a follow-up color pass: near-black teal-tinted
+surfaces, a deep teal ambient background glow, and one warm amber/orange
+accent standing in for every active/brand moment (nav, buttons, focus
+rings, the brand mark) in place of the purple/cyan pair from the reskin
+above. Sampled directly from the clip's frames (`ffmpeg` frame extraction
++ pixel averaging, not guessed) before choosing hex values.
+
+**What did *not* go monochrome, on purpose.** The reference clip is a
+single-metric dashboard — it never had to solve telling two things apart
+in the same view. CallEvals does, in a few places, so three color systems
+were deliberately kept independent of the new brand accent rather than
+flattened to it:
+- The dual-line Weekly Trend chart (`TrendLineChart.js`) — score stayed
+  amber (`#f0923e`), but conversion became a muted teal-grey dashed line
+  (`#7fa39d`) instead of a second bright hue, so the two series stay
+  readable without reintroducing a competing brand color.
+- The objection-tag category palette (`.tag-price`, `.tag-competitor`,
+  `.tag-authority`, etc. in `App.css`) — untouched; nine categories need
+  more than one hue to stay scannable at a glance.
+- The existing green/amber/rose sentiment-and-status semantic scale
+  (`--accent-green`/`--accent-amber`/`--accent-rose`) — untouched. This
+  creates one real naming wrinkle worth knowing about: `--accent-amber`
+  (`#fbbf24`, semantic "moderate/warning," e.g. Medium buying-intent
+  chips) and the new brand accent (`#f0923e`, carried by the
+  `--accent-purple*` variable names for historical reasons — renaming
+  ~200 call sites across the stylesheet wasn't worth it for a values-only
+  swap) are both in the amber family but visually distinct — golden-yellow
+  vs. deep orange — confirmed side by side in the live screenshots below,
+  not just asserted.
+
+A handful of "neutral middle state" chips (`.sentiment-neutral`,
+`.intent-low`, `.compliance-not_applicable`, `.addressed-no`,
+`.tag-contract`) previously rode the old purple-family wash as a generic
+neutral tint, which worked because purple was the base brand hue. With
+amber now meaning "active/brand," reusing it for these would have sent
+the wrong signal (amber usually reads as caution, not neutral-default), so
+these five were pointed at a true neutral teal-grey instead of following
+the brand-accent swap.
+
+**Verification.** 158 backend tests still passing (palette-only change).
+Three leads and three calls seeded directly via `tests/factories.py`
+(`make_call`/`make_lead`) across two weeks, so the Weekly Trend chart,
+KPI sparklines, and Kanban board could be checked with real multi-point
+data rather than empty states — confirmed the score/conversion lines
+stay visually distinct, the semantic amber/brand amber pair reads as two
+different colors side by side, and the categorical objection-tag and
+sentiment/intent badges were untouched by the swap. Seed data removed
+from `server/data/` afterward.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

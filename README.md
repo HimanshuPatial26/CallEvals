@@ -19,10 +19,7 @@ Everything here runs on free tiers — no GCP billing account, no paid API:
   a throwaway. **Deepgram is available as an opt-in alternative** (set
   `ASR_PROVIDER=deepgram` and `DEEPGRAM_API_KEY` in `.env`) — it gets native
   multichannel transcription (no local channel-split step) and, closer to the
-  PRD's own per-minute cost assumption in section 7, real mono diarization via
-  `diarize=true`. That diarization flag is deliberately not wired in, though —
-  see `app/asr/deepgram_provider.py` — turning it on would silently undo the
-  Phase 1 scope cut this build otherwise respects.
+  PRD's own per-minute cost assumption in section 7.
 - **Extraction — Gemini Developer API free tier** (ai.google.dev). Structured
   JSON output (F2 summary, F3 next steps, F4 objections), no GCP billing account
   required, unlike Vertex AI or Cloud Speech.
@@ -33,7 +30,22 @@ Everything here runs on free tiers — no GCP billing account, no paid API:
 **Speaker separation** prefers dual-channel (stereo) recordings — trivial channel
 split, perfect separation, no ML — and falls back to labeling everything
 `unknown` for mono audio rather than faking diarization. Real diarization for
-mono calls is an explicit Phase 1 cut, not a silent gap (PRD section 5).
+genuinely mono calls is an explicit Phase 1 cut, not a silent gap (PRD section 5).
+
+**Real-world wrinkle found in testing**: a file can be a 2-channel container
+without the two speakers actually landing on separate channels — a recorder
+that mixes both parties onto one track and leaves the other silent produces
+exactly this. `multichannel=true` can't split audio that was never separated
+in the source, so Deepgram returns real content on only one channel index.
+`deepgram_provider.py` detects this (fewer than 2 channels carry any
+transcript) and falls back to Deepgram's diarization (`speaker` field)
+specifically for that failure case — first diarized speaker to talk is
+labeled the rep, everyone else is labeled the customer. This is a heuristic,
+not a guarantee (wrong if the customer calls in first, or if hold
+music/an IVR segment gets diarized as its own "speaker"), and diarization
+confidence runs noticeably lower than channel-based separation in practice.
+Genuinely mono files (dual_channel=False) are unaffected by this — they still
+stay labeled `unknown`, per the Phase 1 scope cut above.
 
 ## What changed from the original scaffold
 

@@ -4,12 +4,24 @@
 Two things Deepgram gives for free that the self-hosted path doesn't:
 - `multichannel=true` transcribes each channel in one call, so dual-channel
   calls skip the local soundfile split + two separate whisper passes.
-- Real diarization is available via `diarize=true` for mono calls, which would
-  close the gap the PRD's F1 design decision explicitly punts to Phase 1 — but
-  that's a scope decision, not just a technical one, so it's deliberately NOT
-  turned on here. Mono calls are transcribed plain and labeled Speaker.UNKNOWN,
-  same as the faster-whisper path, so switching providers doesn't silently
-  change what Phase 0 promises.
+- Real diarization is available via `diarize=true`.
+
+Diarization is deliberately NOT used for genuinely mono calls (dual_channel is
+False here iff app.audio.channel_split.is_dual_channel found one channel in
+the container) — mono calls stay labeled Speaker.UNKNOWN, same as the
+faster-whisper path, per the Phase 0 scope decision to punt real diarization
+to Phase 1.
+
+It IS used as a fallback for a real failure mode found in production: a file
+can be a 2-channel container (dual_channel=True) without the two speakers
+actually being on separate channels — e.g. a recorder that mixes both parties
+onto one track and leaves the other silent. `multichannel=true` can't split
+audio that was never separated in the first place; when that happens, only
+one channel comes back with real content. We detect that case (see
+_segments_from_diarization) and fall back to diarize=true, which at least
+clusters distinct voices even though it can't tell you which one is the rep.
+That's a heuristic (first speaker to talk = rep), not a guarantee — see the
+docstring below for its failure modes.
 
 Not free forever: unlike faster-whisper this bills per minute after the
 account's free credit runs out (see PRD section 7 for the self-host breakeven
@@ -50,6 +62,10 @@ class DeepgramProvider(ASRProvider):
         }
         if dual_channel:
             params["multichannel"] = "true"
+            # Requested alongside multichannel purely as a fallback signal — see
+            # module docstring. Free to request; only used if channel separation
+            # turns out not to have actually happened.
+            params["diarize"] = "true"
 
         content_type = mimetypes.guess_type(str(audio_path))[0] or "audio/wav"
         response = httpx.post(
@@ -63,16 +79,55 @@ class DeepgramProvider(ASRProvider):
             timeout=120.0,
         )
         response.raise_for_status()
-        utterances = response.json()["results"]["utterances"]
+        utterances = [u for u in response.json()["results"]["utterances"] if u["transcript"].strip()]
 
-        segments = [
+        if not dual_channel:
+            segments = [
+                TranscriptSegment(speaker=Speaker.UNKNOWN, start=u["start"], end=u["end"], text=u["transcript"].strip())
+                for u in utterances
+            ]
+        elif len({u.get("channel", 0) for u in utterances}) >= 2:
+            segments = self._segments_from_channels(utterances)
+        else:
+            segments = self._segments_from_diarization(utterances)
+
+        return sorted(segments, key=lambda s: s.start)
+
+    def _segments_from_channels(self, utterances: list[dict]) -> list[TranscriptSegment]:
+        return [
             TranscriptSegment(
-                speaker=_CHANNEL_SPEAKER.get(u.get("channel", 0), Speaker.UNKNOWN) if dual_channel else Speaker.UNKNOWN,
+                speaker=_CHANNEL_SPEAKER.get(u.get("channel", 0), Speaker.UNKNOWN),
                 start=u["start"],
                 end=u["end"],
                 text=u["transcript"].strip(),
             )
             for u in utterances
-            if u["transcript"].strip()
         ]
-        return sorted(segments, key=lambda s: s.start)
+
+    def _segments_from_diarization(self, utterances: list[dict]) -> list[TranscriptSegment]:
+        """Fallback when a 2-channel file didn't actually separate the speakers.
+
+        Heuristic: the first distinct diarized speaker to talk is labeled the
+        rep, every other speaker ID is labeled the customer (multi-party calls
+        beyond two voices collapse into "customer" — Phase 0 only models two
+        roles). This is right when the rep opens the call, which is the norm
+        for outbound sales calls, and wrong when the customer calls in first
+        or the call opens with hold music / an IVR segment that gets diarized
+        as its own "speaker." Deepgram's diarization confidence is also
+        noticeably lower than channel-based separation — expect occasional
+        misattributed short turns ("okay", "yeah").
+        """
+        first_speaker_id: int | None = None
+        segments = []
+        for u in utterances:
+            speaker_id = u.get("speaker")
+            if speaker_id is None:
+                speaker = Speaker.UNKNOWN
+            else:
+                if first_speaker_id is None:
+                    first_speaker_id = speaker_id
+                speaker = Speaker.REP if speaker_id == first_speaker_id else Speaker.CUSTOMER
+            segments.append(
+                TranscriptSegment(speaker=speaker, start=u["start"], end=u["end"], text=u["transcript"].strip())
+            )
+        return segments

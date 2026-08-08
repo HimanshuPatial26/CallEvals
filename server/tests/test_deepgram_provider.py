@@ -54,7 +54,30 @@ def test_dual_channel_maps_channels_to_speakers(deepgram_key, monkeypatch, tmp_p
     assert segments[1].text == "too expensive"
 
 
-def test_mono_labels_everything_unknown(deepgram_key, monkeypatch, tmp_path):
+def test_mono_uses_diarization_to_label_speakers(deepgram_key, monkeypatch, tmp_path):
+    """Mono calls are diarized directly now (not left as unknown) — the
+    speaker/channel distinction doesn't matter here since dual_channel=False
+    means multichannel was never requested, so channel is always 0."""
+    from app.asr.deepgram_provider import DeepgramProvider
+
+    _mock_response(
+        monkeypatch,
+        [
+            {"start": 0.0, "end": 1.0, "channel": 0, "transcript": "hello this is steven", "speaker": 1},
+            {"start": 1.5, "end": 2.5, "channel": 0, "transcript": "yes speaking", "speaker": 0},
+        ],
+    )
+
+    audio_path = tmp_path / "call.wav"
+    audio_path.write_bytes(b"fake-audio")
+
+    segments = DeepgramProvider().transcribe(audio_path, dual_channel=False)
+
+    assert segments[0].speaker == Speaker.REP  # speaker 1 talked first
+    assert segments[1].speaker == Speaker.CUSTOMER
+
+
+def test_mono_without_speaker_field_labels_unknown(deepgram_key, monkeypatch, tmp_path):
     from app.asr.deepgram_provider import DeepgramProvider
 
     _mock_response(monkeypatch, [{"start": 0.0, "end": 1.0, "channel": 0, "transcript": "hello"}])

@@ -28,24 +28,32 @@ Everything here runs on free tiers — no GCP billing account, no paid API:
   Postgres yet.
 
 **Speaker separation** prefers dual-channel (stereo) recordings — trivial channel
-split, perfect separation, no ML — and falls back to labeling everything
-`unknown` for mono audio rather than faking diarization. Real diarization for
-genuinely mono calls is an explicit Phase 1 cut, not a silent gap (PRD section 5).
+split, perfect separation, no ML. The original Phase 0 plan was to label mono
+audio `unknown` rather than attempt diarization at all (PRD section 5) — that
+held until real testing showed most calls arriving in practice are mono, at
+which point trying to identify speakers at all beat refusing to on principle.
 
-**Real-world wrinkle found in testing**: a file can be a 2-channel container
-without the two speakers actually landing on separate channels — a recorder
-that mixes both parties onto one track and leaves the other silent produces
-exactly this. `multichannel=true` can't split audio that was never separated
-in the source, so Deepgram returns real content on only one channel index.
-`deepgram_provider.py` detects this (fewer than 2 channels carry any
-transcript) and falls back to Deepgram's diarization (`speaker` field)
-specifically for that failure case — first diarized speaker to talk is
-labeled the rep, everyone else is labeled the customer. This is a heuristic,
-not a guarantee (wrong if the customer calls in first, or if hold
-music/an IVR segment gets diarized as its own "speaker"), and diarization
-confidence runs noticeably lower than channel-based separation in practice.
-Genuinely mono files (dual_channel=False) are unaffected by this — they still
-stay labeled `unknown`, per the Phase 1 scope cut above.
+**On the Deepgram path**, `deepgram_provider.py` now always requests
+`diarize=true`. Real channel separation still wins whenever it's actually
+available (free, and more reliable than diarization); diarization is used
+directly for mono calls, and as a fallback for "dual-channel" files that
+didn't actually separate — a real failure mode found in testing, where a
+recorder mixes both parties onto one track and leaves the other channel
+silent, so `multichannel=true` has nothing to split and Deepgram returns
+content on only one channel index. Either way, role assignment is a
+heuristic: the first diarized speaker to talk is labeled the rep, everyone
+else the customer. Right when the rep opens the call (the norm for outbound
+sales calls), wrong if the customer calls in first or if hold music / an IVR
+segment gets diarized as its own "speaker." Diarization confidence also runs
+noticeably lower than channel-based separation in practice — expect
+occasional misattributed short turns ("okay", "yeah").
+
+**On the faster-whisper path**, mono calls still come back `Speaker.UNKNOWN`
+— Whisper itself has no diarization, so matching Deepgram's mono behavior
+would mean a new dependency (e.g. `pyannote.audio`), more model weights, more
+CPU/GPU cost, and likely a Hugging Face token for a gated model. Not done;
+dual-channel audio through faster-whisper still gets real rep/customer labels
+via the local channel split, same as always.
 
 ## What changed from the original scaffold
 

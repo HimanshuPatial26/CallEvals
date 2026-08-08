@@ -188,30 +188,38 @@ they run without network access, an API key, or a downloaded Whisper model.
 
 ## Known limitations / not yet verified
 
-- **Neither ASR path has completed a real transcription through this app from
-  inside the original dev sandbox.** That sandbox blocks both
-  `huggingface.co` (faster-whisper's model download) and `api.deepgram.com`
-  at the network-policy level, so a real upload fails at the ASR step no
-  matter which provider is configured there — confirmed by actually trying
-  both, not assumed. Both providers have since been exercised for real
-  outside that sandbox, on a real Windows machine, and both surfaced real
-  bugs that only showed up under those conditions:
-  - **Deepgram**: response shape confirmed live and matches what
-    `deepgram_provider.py` parses (`results.utterances[].{start,end,channel,transcript}`).
-    Also surfaced a real-world failure mode: a "stereo" recording where both
-    speakers were mixed onto one channel and the other was silent, so
-    `multichannel=true` couldn't actually separate them. Fixed with a
-    diarization fallback for that specific case — see `deepgram_provider.py`.
-    Not yet confirmed: a file where `multichannel=true` genuinely produces
-    two populated channels.
-  - **faster-whisper**: first real run on Windows failed immediately —
-    `Error opening '...': System error.` — because `_transcribe_track` wrote
-    the audio via `tempfile.NamedTemporaryFile`, which keeps its own handle
-    open on the file. `soundfile` opening that same path a second time to
-    write to it works on Linux/Mac (multiple handles to one path are fine
-    there) but Windows locks the file against a second opener. Fixed by
-    switching to a plain path inside a `TemporaryDirectory` instead. Not yet
-    confirmed: a successful end-to-end transcription after that fix.
+**The original dev sandbox this was built in blocks both `huggingface.co`
+(faster-whisper's model download) and `api.deepgram.com` at the
+network-policy level** — a real upload fails at the ASR step there no matter
+which provider is configured, confirmed by actually trying both. Everything
+below happened outside that sandbox, on a real Windows machine, end to end
+through the actual app (not raw curl):
+
+- **faster-whisper — confirmed working end to end.** First real run failed
+  immediately with `Error opening '...': System error.` —
+  `_transcribe_track` wrote audio via `tempfile.NamedTemporaryFile`, which
+  keeps its own handle open on the file; `soundfile` opening that same path a
+  second time to write to it works on Linux/Mac but Windows locks the file
+  against a second opener. Fixed by writing to a plain path inside a
+  `TemporaryDirectory` instead. Re-tested after the fix: real transcription,
+  real text, matching the call's actual content (with the accuracy tradeoffs
+  you'd expect from the `base` model — a few misheard words, no punctuation
+  polish). Mono only so far; dual-channel through faster-whisper is
+  implemented and unit-tested but not yet confirmed against a real
+  dual-channel file.
+- **Deepgram — confirmed working end to end, including diarization, after
+  fixing a real heuristic bug.** Response shape confirmed live and matches
+  what `deepgram_provider.py` parses. Surfaced a real-world channel-separation
+  failure (a "stereo" file with both speakers mixed onto one channel, the
+  other silent) — fixed with a diarization fallback. That fallback's first
+  version then turned out to have the rep/customer roles backwards: it
+  assumed whoever talks first is the rep, but in a real phone call whoever
+  *answers* talks first, before the caller says anything — on an outbound
+  call that's almost always the customer. Fixed by switching to "whoever
+  talks the most overall" as the signal instead, and confirmed live: the rep
+  is now labeled correctly. Not yet confirmed: a file where
+  `multichannel=true` genuinely produces two populated channels (real channel
+  separation, not the diarization fallback).
 - **Gemini extraction is verified live**, not simulated, and iterated on
   live. Two real bugs surfaced only once a real API key was used, not before:
   `google-genai==0.6.0` (originally pinned) builds a `$ref`/`$defs`-based JSON

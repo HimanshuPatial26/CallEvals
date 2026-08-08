@@ -5,10 +5,15 @@ decoration the PRD calls out for the vector DB.
 """
 
 import json
+import logging
 from pathlib import Path
+
+from pydantic import ValidationError
 
 from app.config import settings
 from app.schemas import CallRecord
+
+logger = logging.getLogger(__name__)
 
 _RECORDS_DIR = settings.data_dir / "calls"
 _AUDIO_DIR = settings.data_dir / "audio"
@@ -34,5 +39,21 @@ def load(call_id: str) -> CallRecord | None:
 
 
 def list_all() -> list[CallRecord]:
-    records = [CallRecord.model_validate(json.loads(p.read_text())) for p in _RECORDS_DIR.glob("*.json")]
+    """Skips (rather than crashes on) a file that fails to parse or validate
+    — one legacy-schema or corrupt record shouldn't take down the whole call
+    list for everyone else. This is a real failure mode, not hypothetical:
+    calls saved before the agent_id/lead_id schema change (pre ROADMAP.md
+    Phase A) fail validation here. Run `python -m scripts.migrate_legacy_calls`
+    to fix them forward instead of leaving them silently excluded."""
+    records = []
+    for path in _RECORDS_DIR.glob("*.json"):
+        try:
+            records.append(CallRecord.model_validate(json.loads(path.read_text())))
+        except (ValidationError, json.JSONDecodeError) as exc:
+            logger.warning(
+                "Skipping unreadable call record %s (%s) — run "
+                "`python -m scripts.migrate_legacy_calls` if this is a pre-Phase-A record.",
+                path.name,
+                exc,
+            )
     return sorted(records, key=lambda r: r.created_at, reverse=True)

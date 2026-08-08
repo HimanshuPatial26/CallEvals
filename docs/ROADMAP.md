@@ -32,7 +32,12 @@ it doesn't block the code.
 
 ## Phase A — Identity & lead data model (foundation)
 
-**Status: A1–A5 done (2026-08-08). A6 skipped — turned out unnecessary.**
+**Status: A1–A6 done.** A6 was first marked "skipped, turned out
+unnecessary" because `server/data/calls/` was empty in the dev sandbox
+when A1–A5 shipped — that assumption broke almost immediately in a real
+deployment with real historical calls (`GET /api/calls` 500ing with
+`agent_id`/`lead_id` "Field required" on every pre-Phase-A record). Fixed
+same-day: see the A6 row below.
 
 Nothing below this is buildable without it: TEAM and ORGANIZATION rollups
 need a real roster, and lead-level conversion needs a lead entity that
@@ -45,7 +50,7 @@ outlives any single call.
 | A3 | Lead stage history (audit log: stage, changed_by, changed_at) | Conversion analytics needs "when did this lead reach won," not just "what's the latest tag." Also the only way to catch/audit a manager overwriting an outcome. | S | **Done** — `changed_by` is optional free text for now; real attribution needs Phase E auth |
 | A4 | `CallRecord.lead_id` (required) + `CallRecord.agent_id` (FK, not free text) | Every call attributed to a lead — this is explicitly what was asked for. | S | **Done** — both validated against the roster/lead store at upload time (400 if unknown) |
 | A5 | Move `CallOutcome` from call-level to lead-level | A lead with 5 calls before winning is **one** conversion, not a coin-flip over which call "owns" the won tag. Current call-level `outcome` field gets deprecated in favor of `Lead.stage`. | M | **Done** — `POST /api/calls/{id}/outcome` removed, replaced by `POST /api/leads/{id}/stage` |
-| A6 | Migration path for existing filesystem data (backfill agent roster + synthetic leads from history) | Don't discard the calls already in `server/data/`. | S | **Skipped** — `server/data/calls/` was empty when this shipped (no real customer data yet), so this was a clean cutover, not a migration |
+| A6 | Migration path for existing filesystem data (backfill agent roster + synthetic leads from history) | Don't discard the calls already in `server/data/`. | S | **Done** — `server/scripts/migrate_legacy_calls.py`. Also hardened `storage.list_all()` to skip (not crash on) any record it can't validate, logging which file and pointing at the migration script — one bad or pre-migration record no longer takes down `GET /api/calls` for everyone. |
 
 **Decided rather than left open:** a lead maps 1:1 to whatever the manager
 decides to create via `POST /api/leads` — the app doesn't enforce phone

@@ -319,6 +319,26 @@ safeguard yet, so creating a duplicate `Lead` for a prospect who already
 has one is possible — noted as a real gap in ROADMAP.md rather than solved
 here.
 
+**Upgrading an existing deployment with real historical calls?** This
+schema change broke a real user's environment the same day it shipped:
+`GET /api/calls` started 500ing with `agent_id`/`lead_id` "Field required"
+on every call saved before this pass, because those records only had the
+old `agent_name`/`outcome` fields. If you have calls in `server/data/`
+from before this update:
+
+```bash
+cd server && source .venv/bin/activate && python -m scripts.migrate_legacy_calls
+```
+
+This backfills each old record with a real `Agent` (deduped by the old
+`agent_name`) and a new `Lead` per call (carrying over the old
+`outcome.stage`/`deal_size_aed` if one was set) rather than discarding
+anything. It's idempotent — safe to run again, records already on the
+current schema are left untouched. `storage.list_all()` was also hardened
+separately to skip an unreadable record with a logged warning instead of
+crashing the whole endpoint, so one un-migrated file can no longer take
+down the entire call list for everyone.
+
 **Verification.** 42 new/updated backend tests: `test_roster_storage.py`
 and `test_lead_storage.py` (filesystem persistence, including that
 `stage_history` is appended to, never overwritten), a full rewrite of
@@ -391,6 +411,9 @@ server/
   eval/
     mock_calls/      6 scripted calls + hand-labeled ground truth (PRD section 9)
     run_precision_eval.py
+  scripts/
+    seed_demo_roster.py     synthetic demo roster (10 teams x 10 agents)
+    migrate_legacy_calls.py backfills agent_id/lead_id onto pre-Phase-A call records
   tests/
     conftest.py      redirects filesystem storage at a temp dir for the whole test session
 frontend/

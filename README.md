@@ -1,7 +1,9 @@
 # CallEvals — Sahil, Phase 0
 
 Sales call intelligence for GCC mid-market real estate brokerages: transcript in,
-summary + next steps + objection tags out. Full product spec: [docs/PRD.md](docs/PRD.md).
+summary + next steps + objection tags out, plus a scored rubric, sentiment,
+buying intent, coaching notes, and rule-based compliance checks (see
+"Analytics expansion" below). Full product spec: [docs/PRD.md](docs/PRD.md).
 
 This repo is the Phase 0 build the PRD calls for (section 9) — prove that
 extraction (F2–F4) is accurate enough to trust, against scripted mock calls,
@@ -94,6 +96,80 @@ Only computed when the transcript actually distinguishes rep from customer
 — a mono call with no diarization has nothing to compute these from, and
 the UI says so plainly rather than showing zeros.
 
+## Analytics expansion (2026-08-08) — score, sentiment, buying intent, coaching, compliance
+
+A sales-manager analytics requirements doc, external to the original PRD,
+called for a fuller Gong-style rubric than Phase 0 scoped. Building the gap
+was an explicit product decision, made with the PRD's original reasoning
+still visible rather than quietly deleted — see the dated addendum in
+[docs/PRD.md](docs/PRD.md) section 5. What's new:
+
+- **`overall_score`** (0–100) and **`score_breakdown`** — the doc's
+  8-dimension weighted rubric (opening/rapport, discovery, active listening,
+  pitch, objection handling, communication, closing, compliance). Every
+  dimension carries a transcript-grounded evidence string, not just a
+  number — the doc's own principle (its section 19): "every score should be
+  supported by transcript evidence rather than being a black-box number."
+  This is the one output that directly reverses a PRD cut (composite call
+  scoring, cut for gaming/surveillance risk) rather than extending prior
+  scope, and that tension is called out, not hidden, in the PRD addendum.
+- **`sentiment`** — overall + beginning/middle/end arc, plus signal phrases
+  and a confidence figure. Also a direct reversal of a PRD cut (sentiment
+  was rejected as low-precision and the least actionable output in this
+  category) — kept explicitly labeled as an AI-derived read, never a fact.
+- **`buying_intent`** — level (high/medium/low), the quotes that drove it,
+  and a follow-up-priority recommendation. Deliberately kept separate from
+  sentiment: a positive customer isn't necessarily a ready one.
+- **`coaching`** — top strength/weakness and one behavior each to stop,
+  continue, start, each grounded in the specific call rather than generic
+  advice.
+- **Objection taxonomy: 3 → 10 categories** (price, timing, competitor,
+  need, trust, authority, product, implementation, contract,
+  switching_cost) — the PRD's original three were a deliberate precision
+  trade-off ("three, not five, because narrow scope keeps precision high");
+  widening to ten trades some of that back for coverage, and the precision
+  eval needs re-running at the new taxonomy's scope before trusting it at
+  the original bar.
+- **`compliance`** — the one new output that is *not* an LLM call:
+  `app/compliance.py` runs deterministic keyword/phrase rules over the
+  transcript (required intro, required recording disclosure, prohibited
+  guaranteed-return claims, unapproved-discount mentions) and reports
+  pass/fail/detected per rule plus an adherence percentage. Same
+  zero-marginal-cost, no-new-precision-risk shape as `app/insights.py`. The
+  recording-disclosure rule specifically exists because the PRD (section 10)
+  already flags UAE PDPL consent as a product requirement, not a legal
+  footnote — this is what "automated disclosure support" turns into as a
+  check. The seeded rule set is illustrative for the Dubai/Abu Dhabi
+  brokerage ICP (PRD section 3), not a compliance guarantee; a real
+  deployment needs an org-supplied rule list, which the doc itself asks for
+  (section 14: "create configurable rules based on the company's sales
+  process").
+
+**Architecture:** sentiment, buying intent, coaching, and the 7 LLM-scored
+rubric dimensions all ride the same single Gemini structured-output call
+that already produces F2–F4 — marginal cost only, no new API call, same
+pattern already used for `addressed` on objections. `overall_score` is
+computed in `pipeline.py` by summing those 7 dimensions with the
+compliance-derived 8th (`adherence_pct / 100 * 5`), not returned by the
+model directly, so the one number that's most exposed to gaming risk is at
+least partly grounded in a deterministic check rather than being 100%
+LLM-judged.
+
+**Verification status — deliberately not oversold.** The new extraction
+fields were smoke-tested live against `gemini-2.5-flash` on a realistic
+6-turn mock call and came back well-formed and sensible (correct sentiment
+arc, evidence-grounded dimension scores, a concrete coaching read). The full
+precision-eval re-run against all 6 mock calls — needed to get real
+numbers on the *expanded* objection taxonomy specifically, since precision
+against 10 categories isn't guaranteed to match precision against 3 — was
+blocked by the Gemini free tier's daily request quota (20 requests/day per
+model) being exhausted by prior runs in this session. `app/compliance.py`
+is unit-tested directly (`tests/test_compliance.py`) since it's
+deterministic and needs no API key. Re-run
+`python -m eval.run_precision_eval` once the daily quota resets (or against
+a paid-tier key) before treating the wider objection taxonomy as being at
+the same precision bar as the original three categories.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes
@@ -119,9 +195,11 @@ server/
     audio/           dual-channel split
     extraction/      ExtractionProvider interface + Gemini implementation
     routers/         FastAPI routes
-    pipeline.py      orchestrates ASR -> extraction
+    insights.py      rule-based behavior readouts (talk time, monologues, questions, interruptions)
+    compliance.py    rule-based script-adherence checks (analytics doc section 14)
+    pipeline.py      orchestrates ASR -> extraction -> insights/compliance/overall_score
     storage.py       filesystem persistence
-    schemas.py       F1-F4 data model
+    schemas.py       F1-F4 + score/sentiment/intent/coaching/compliance data model
   eval/
     mock_calls/      6 scripted calls + hand-labeled ground truth (PRD section 9)
     run_precision_eval.py
@@ -129,7 +207,9 @@ server/
 frontend/
   src/
     components/      UploadPanel, CallList, CallDetail, TranscriptView,
-                      NextStepsPanel, ObjectionTags
+                      NextStepsPanel, ObjectionTags, CallInsightsPanel,
+                      ScoreBreakdownPanel, SentimentPanel, BuyingIntentPanel,
+                      CoachingPanel, ComplianceChecklist
     api/client.js
 docs/
   PRD.md
@@ -263,5 +343,13 @@ through the actual app (not raw curl):
   The precision numbers above are from two real runs against
   `gemini-2.5-flash`, not one — the second after a prompt fix for
   over-segmentation, with the improvement measured, not assumed.
+- **The score/sentiment/buying-intent/coaching/10-category-objection
+  expansion (see "Analytics expansion" above) is smoke-tested live, not
+  precision-measured.** The Gemini free tier's 20-requests/day quota was
+  exhausted by prior runs in this session before the full 6-call precision
+  eval could be re-run against the new prompt. Re-run
+  `python -m eval.run_precision_eval` once the quota resets to get real
+  numbers on the wider objection taxonomy before trusting it at the
+  original 3-category precision bar.
 - No auth, no multi-tenant storage, no CRM integration — all explicitly Phase 1+
   per the PRD roadmap (section 9).

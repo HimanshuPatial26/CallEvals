@@ -230,6 +230,41 @@ body {
   color: #5b008a;
 }
 
+.tag-need {
+  background: #dff5e3;
+  color: #146c2e;
+}
+
+.tag-trust {
+  background: #fde2e2;
+  color: #8a1f1f;
+}
+
+.tag-authority {
+  background: #e2e2fd;
+  color: #2c2c8a;
+}
+
+.tag-product {
+  background: #fdf3c8;
+  color: #7a5d00;
+}
+
+.tag-implementation {
+  background: #d9f7f7;
+  color: #005f5f;
+}
+
+.tag-contract {
+  background: #ececec;
+  color: #444;
+}
+
+.tag-switching_cost {
+  background: #ffe3ef;
+  color: #8a0050;
+}
+
 .item-meta {
   display: block;
   color: #777;
@@ -292,4 +327,114 @@ body {
 
 .speaker-customer .transcript-speaker {
   color: #17663a;
+}
+
+.overall-score {
+  margin-bottom: 0.75rem;
+}
+
+.overall-score-value {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.overall-score-max {
+  font-size: 1rem;
+  color: #777;
+  margin-left: 0.15rem;
+}
+
+.score-row-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.sentiment-arc {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.4rem;
+}
+
+.sentiment-arrow {
+  color: #999;
+}
+
+.sentiment-tag,
+.intent-tag,
+.compliance-tag {
+  display: inline-block;
+  text-transform: capitalize;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.sentiment-positive {
+  background: #d7f3df;
+  color: #17663a;
+}
+
+.sentiment-neutral {
+  background: #ececec;
+  color: #444;
+}
+
+.sentiment-negative {
+  background: #fbdada;
+  color: #8a2020;
+}
+
+.intent-high {
+  background: #d7f3df;
+  color: #17663a;
+}
+
+.intent-medium {
+  background: #fff3cd;
+  color: #8a6400;
+}
+
+.intent-low {
+  background: #ececec;
+  color: #444;
+}
+
+.compliance-tag {
+  text-transform: none;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.compliance-pass,
+.compliance-not_detected {
+  background: #d7f3df;
+  color: #17663a;
+}
+
+.compliance-fail,
+.compliance-detected {
+  background: #fbdada;
+  color: #8a2020;
+}
+
+.compliance-warning {
+  background: #fff3cd;
+  color: #8a6400;
+}
+
+.compliance-not_applicable {
+  background: #ececec;
+  color: #888;
+}
+
+.coaching-list li {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.coaching-value {
+  font-weight: 400;
 }

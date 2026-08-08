@@ -67,7 +67,7 @@ Why this segment:
 
 **F3 — Next-step extraction.** What the rep committed to and by when. The most immediately useful output and the easiest to verify — a manager can check it against the call in thirty seconds, which builds trust in everything else.
 
-**F4 — Objection tagging.** Three categories at launch: price, timing, competitor. Three, not five, because narrow scope keeps precision high and these cover most of what appears in this vertical.
+**F4 — Objection tagging.** Three categories at launch: price, timing, competitor. Three, not five, because narrow scope keeps precision high and these cover most of what appears in this vertical. *(Addendum 2026-08-08: expanded to 10 categories — see the scope-expansion note below. Re-run the precision eval before trusting the wider taxonomy at the same bar as the original three.)*
 
 ### Deliberately cut, with reasons
 
@@ -79,6 +79,26 @@ Why this segment:
 | Executive dashboard | At this ICP size, the buyer and the manager are the same person. |
 | Real-time in-call assist | Far higher latency and accuracy bar. Solve async first. |
 | WhatsApp and chat ingestion | Out of scope in this version. Calls only. |
+
+**Addendum (2026-08-08) — two of these cuts were explicitly reversed.** A
+sales-manager analytics requirements doc (not part of the original PRD)
+called for a full Gong-style rubric: a weighted composite score and
+per-call sentiment, among other things. Building that gap was an explicit,
+informed product decision — not scope creep discovered after the fact —
+made with the reasoning above still on the table: composite scoring can get
+gamed and reads as surveillance to reps, and sentiment is genuinely
+lower-confidence than the other outputs. Both are now built (section 18-style
+weighted score, section 11-style sentiment arc), and both ship labeled with
+per-dimension evidence and a confidence figure rather than presented as
+settled facts, per that same doc's own principle (section 35): "show
+confidence where AI classification is uncertain." **The tension with this
+PRD's own positioning is real** — "three outputs, low price, no procurement
+cycle, live in a week" (section 2) describes a smaller product than what's
+now built — and is noted here rather than silently rewritten. Also built in
+this pass, extending rather than reversing prior scope: discovery/pitch/
+closing rubric scoring, buying-intent signals, rule-based compliance/script-
+adherence checks, AI coaching output, and the objection taxonomy expanded
+from 3 to the doc's 10 categories.
 
 **Correcting the v1.0 roadmap:** CRM integration sat in Phase 3 while win rate and revenue metrics sat in Phases 1–2. Those are computed from CRM outcome data. CRM moves to Phase 2 as a hard dependency.
 

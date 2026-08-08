@@ -3,6 +3,11 @@ import TranscriptView from "./TranscriptView";
 import NextStepsPanel from "./NextStepsPanel";
 import ObjectionTags from "./ObjectionTags";
 import CallInsightsPanel from "./CallInsightsPanel";
+import ScoreBreakdownPanel from "./ScoreBreakdownPanel";
+import SentimentPanel from "./SentimentPanel";
+import BuyingIntentPanel from "./BuyingIntentPanel";
+import CoachingPanel from "./CoachingPanel";
+import ComplianceChecklist from "./ComplianceChecklist";
 
 export default function CallDetail({ call, onFeedbackChange }) {
   const [highlightTimestamp, setHighlightTimestamp] = useState(null);
@@ -20,6 +25,15 @@ export default function CallDetail({ call, onFeedbackChange }) {
       <section className="panel">
         <h3>Summary</h3>
         <p>{call.extraction.summary}</p>
+      </section>
+
+      <section className="panel">
+        <h3>Score breakdown</h3>
+        <ScoreBreakdownPanel
+          scoreBreakdown={call.extraction.score_breakdown}
+          compliance={call.compliance}
+          overallScore={call.overall_score}
+        />
       </section>
 
       <div className="call-detail-columns">
@@ -49,6 +63,30 @@ export default function CallDetail({ call, onFeedbackChange }) {
         <section className="panel">
           <h3>Transcript</h3>
           <TranscriptView segments={call.transcript} highlightTimestamp={highlightTimestamp} />
+        </section>
+      </div>
+
+      <div className="call-detail-columns">
+        <section className="panel">
+          <h3>Sentiment</h3>
+          <SentimentPanel sentiment={call.extraction.sentiment} />
+        </section>
+
+        <section className="panel">
+          <h3>Buying intent</h3>
+          <BuyingIntentPanel buyingIntent={call.extraction.buying_intent} />
+        </section>
+      </div>
+
+      <div className="call-detail-columns">
+        <section className="panel">
+          <h3>Coaching</h3>
+          <CoachingPanel coaching={call.extraction.coaching} />
+        </section>
+
+        <section className="panel">
+          <h3>Compliance</h3>
+          <ComplianceChecklist compliance={call.compliance} />
         </section>
       </div>
     </div>

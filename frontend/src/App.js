@@ -5,12 +5,19 @@ import UploadPanel from "./components/UploadPanel";
 import CallList from "./components/CallList";
 import CallDetail from "./components/CallDetail";
 import AgentPerformancePage from "./components/AgentPerformancePage";
+import OrganizationPage from "./components/OrganizationPage";
 
 function App() {
   const [tab, setTab] = useState("calls");
   const [calls, setCalls] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [error, setError] = useState(null);
+  const [presetAgentId, setPresetAgentId] = useState(null);
+
+  function goToAgent(agentId) {
+    setPresetAgentId(agentId);
+    setTab("agents");
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -53,6 +60,9 @@ function App() {
           <button className={tab === "agents" ? "active" : ""} onClick={() => setTab("agents")}>
             Agent Performance
           </button>
+          <button className={tab === "organization" ? "active" : ""} onClick={() => setTab("organization")}>
+            Organization
+          </button>
         </nav>
       </header>
 
@@ -73,8 +83,10 @@ function App() {
             )}
           </main>
         </div>
+      ) : tab === "agents" ? (
+        <AgentPerformancePage initialAgentId={presetAgentId} />
       ) : (
-        <AgentPerformancePage />
+        <OrganizationPage onDrillToAgent={goToAgent} />
       )}
     </div>
   );

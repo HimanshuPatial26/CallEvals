@@ -3,11 +3,11 @@ const ORDER = ["discovery_qualification", "objection_handling", "pitch_value_pro
 // Doc section 2's 8-dim rubric, remapped onto the ScoreBreakdown already
 // computed per call — Call Discipline has no defined scoring method yet and
 // is shown as excluded rather than silently dropped.
-export default function AgentScoreBreakdownPanel({ breakdown }) {
+export default function AgentScoreBreakdownPanel({ breakdown, title = "Agent score" }) {
   if (!breakdown) {
     return (
       <section className="panel">
-        <h3>Agent score</h3>
+        <h3>{title}</h3>
         <p className="hint">No scored calls in this period yet.</p>
       </section>
     );
@@ -15,7 +15,7 @@ export default function AgentScoreBreakdownPanel({ breakdown }) {
 
   return (
     <section className="panel">
-      <h3>Agent score</h3>
+      <h3>{title}</h3>
       <div className="overall-score">
         <span className="overall-score-value">{Math.round(breakdown.overall_score)}</span>
         <span className="overall-score-max">/100</span>

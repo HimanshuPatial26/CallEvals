@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { listAgents, getAgentPerformance } from "../api/client";
+import { getOrgPerformance, getTeamPerformance } from "../api/client";
 import AgentOverviewPanel from "./AgentOverviewPanel";
 import AgentScoreBreakdownPanel from "./AgentScoreBreakdownPanel";
 import AgentBehaviorPanel from "./AgentBehaviorPanel";
@@ -7,6 +7,7 @@ import AgentFunnelPanel from "./AgentFunnelPanel";
 import AgentSentimentIntentPanel from "./AgentSentimentIntentPanel";
 import AgentQualityTrendPanel from "./AgentQualityTrendPanel";
 import AgentCoachingPanel from "./AgentCoachingPanel";
+import LeaderboardPanel from "./LeaderboardPanel";
 
 function defaultRange() {
   const end = new Date();
@@ -16,60 +17,66 @@ function defaultRange() {
   return { start: iso(start), end: iso(end) };
 }
 
-export default function AgentPerformancePage({ initialAgentId }) {
-  const [agents, setAgents] = useState([]);
-  const [selectedAgent, setSelectedAgent] = useState("");
+// The TEAM and ORGANIZATION levels of the CALL -> AGENT -> TEAM ->
+// ORGANIZATION hierarchy, in one tab: it opens on the org rollup, and
+// clicking a row in the team leaderboard drills into that team (same
+// panels, filtered population) without leaving the tab. Clicking a row in
+// a team's agent leaderboard hands off to the Agent Performance tab via
+// onDrillToAgent, completing the drill all the way down to CALL/AGENT.
+export default function OrganizationPage({ onDrillToAgent }) {
   const [range, setRange] = useState(defaultRange);
+  const [teamId, setTeamId] = useState(null);
   const [report, setReport] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    listAgents()
-      .then((data) => {
-        setAgents(data);
-        if (data.length > 0 && !selectedAgent) {
-          const preset = initialAgentId && data.some((a) => a.id === initialAgentId) ? initialAgentId : data[0].id;
-          setSelectedAgent(preset);
-        }
-      })
-      .catch((err) => setError(err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const loadReport = useCallback(async () => {
-    if (!selectedAgent) return;
     setLoading(true);
     setError(null);
+    // The org and team reports have different shapes (agent_leaderboard vs.
+    // team_leaderboard, org_benchmark vs. nothing) -- clear the stale report
+    // now so a level switch never renders one shape's data through the
+    // other's panels while the new fetch is in flight.
+    setReport(null);
     try {
-      const data = await getAgentPerformance(selectedAgent, range.start, range.end);
+      const data = teamId ? await getTeamPerformance(teamId, range.start, range.end) : await getOrgPerformance(range.start, range.end);
       setReport(data);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [selectedAgent, range]);
+  }, [teamId, range]);
 
   useEffect(() => {
     loadReport();
   }, [loadReport]);
 
+  // Setting loading here, synchronously in the same event as the teamId
+  // change, matters: without it React renders once with the *new* teamId
+  // but the *old*, differently-shaped report (loadReport's own setReport(null)
+  // only lands a render later, via the effect) -- LeaderboardPanel would get
+  // handed the wrong report's fields and crash on that first render.
+  function selectTeam(id) {
+    setLoading(true);
+    setTeamId(id);
+  }
+
+  const isTeamLevel = teamId != null;
+  const title = report
+    ? isTeamLevel
+      ? `${report.team_name} — ${report.period_start} to ${report.period_end}`
+      : `Organization — ${report.period_start} to ${report.period_end}`
+    : "";
+
   return (
     <div className="agent-performance-page">
       <div className="agent-performance-controls panel">
-        <label className="outcome-field">
-          Agent
-          <select value={selectedAgent} onChange={(e) => setSelectedAgent(e.target.value)}>
-            {agents.length === 0 && <option value="">No agents yet</option>}
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-                {a.team_name ? ` — ${a.team_name}` : ""} ({a.calls_analyzed})
-              </option>
-            ))}
-          </select>
-        </label>
+        {isTeamLevel && (
+          <button type="button" className="link-button" onClick={() => selectTeam(null)}>
+            ← All teams
+          </button>
+        )}
         <label className="outcome-field">
           From
           <input type="date" value={range.start} onChange={(e) => setRange((r) => ({ ...r, start: e.target.value }))} />
@@ -83,27 +90,25 @@ export default function AgentPerformancePage({ initialAgentId }) {
       {error && <p className="error">{error}</p>}
       {loading && <p className="hint">Loading…</p>}
 
-      {!loading && agents.length === 0 && (
-        <p className="hint">No calls uploaded yet — upload a call with an agent name to see performance data here.</p>
-      )}
-
       {!loading && report && (
         <>
-          <AgentOverviewPanel report={report} />
-          <AgentScoreBreakdownPanel breakdown={report.score_breakdown} />
+          <AgentOverviewPanel report={report} title={title} />
+          <AgentScoreBreakdownPanel breakdown={report.score_breakdown} title={isTeamLevel ? "Team score" : "Organization score"} />
           <AgentBehaviorPanel talkTime={report.talk_time} discoveryAvgScore={report.discovery_avg_score} objections={report.objections} />
           <AgentFunnelPanel closing={report.closing} conversion={report.conversion} matrix={report.quality_outcome_matrix} />
           <AgentSentimentIntentPanel sentiment={report.sentiment} conversion={report.conversion} />
-          <AgentQualityTrendPanel
-            distribution={report.quality_distribution}
-            consistency={report.consistency_score}
-            trend={report.trend}
-          />
+          <AgentQualityTrendPanel distribution={report.quality_distribution} consistency={report.consistency_score} trend={report.trend} />
           <AgentCoachingPanel
             strengths={report.strengths}
             weaknesses={report.weaknesses}
             recommendations={report.coaching_recommendations}
-            benchmark={report.team_benchmark}
+            benchmark={isTeamLevel ? report.org_benchmark : null}
+            benchmarkTitle="Org average"
+          />
+          <LeaderboardPanel
+            title={isTeamLevel ? "Agent leaderboard" : "Team leaderboard"}
+            rows={isTeamLevel ? report.agent_leaderboard : report.team_leaderboard}
+            onSelect={isTeamLevel ? onDrillToAgent : selectTeam}
           />
           {report.notes.length > 0 && (
             <section className="panel">

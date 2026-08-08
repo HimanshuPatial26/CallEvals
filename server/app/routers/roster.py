@@ -6,12 +6,14 @@ import csv
 import io
 import json
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app import roster_storage, storage
-from app.schemas import Agent, Team
+from app import lead_storage, roster_storage, storage
+from app.schemas import Agent, Team, TeamPerformanceReport
+from app.team_performance import compute_team_performance
 
 router = APIRouter(tags=["roster"])
 
@@ -46,6 +48,17 @@ async def create_team(body: TeamCreate) -> Team:
 @router.get("/api/teams")
 async def list_teams() -> list[Team]:
     return roster_storage.list_teams()
+
+
+@router.get("/api/teams/{team_id}/performance")
+async def get_team_performance(team_id: str, start: date, end: date) -> TeamPerformanceReport:
+    if start > end:
+        raise HTTPException(status_code=400, detail="start must be on or before end")
+    if roster_storage.load_team(team_id) is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return compute_team_performance(
+        storage.list_all(), lead_storage.list_all(), roster_storage.list_agents(), roster_storage.list_teams(), team_id, start, end
+    )
 
 
 @router.post("/api/agents", status_code=201)

@@ -43,6 +43,16 @@ export function getAgentPerformance(agentId, start, end) {
   return request(`/api/agents/${encodeURIComponent(agentId)}/performance?${params}`);
 }
 
+export function getTeamPerformance(teamId, start, end) {
+  const params = new URLSearchParams({ start, end });
+  return request(`/api/teams/${encodeURIComponent(teamId)}/performance?${params}`);
+}
+
+export function getOrgPerformance(start, end) {
+  const params = new URLSearchParams({ start, end });
+  return request(`/api/organization/performance?${params}`);
+}
+
 export function getLead(leadId) {
   return request(`/api/leads/${leadId}`);
 }

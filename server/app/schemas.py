@@ -336,10 +336,18 @@ class CallRecord(BaseModel):
 
 
 class ScoreDimensionAgg(BaseModel):
+    """Field names say "agent" because that's where this was first built
+    (ROADMAP.md Phase A), but the same shape is reused unchanged at team and
+    org level (Phase B) — agent_score is "this rollup's score" whoever it's
+    for, and team_benchmark is "peer comparison" against whatever the peer
+    group is at that level (teammates for an agent, other teams for a team).
+    Not renamed generic to avoid rippling a cosmetic change through already-
+    tested code and the frontend; the meaning is unambiguous from context."""
+
     label: str
     agent_score: float = Field(description="0-100, rescaled from the dimension's own per-call max")
     team_benchmark: float | None = Field(
-        default=None, description="0-100 average across this agent's teammates' calls in the same period; None if the agent has no team or no teammate data yet"
+        default=None, description="0-100 average across the relevant peer group in the same period (teammates for an agent, other teams for a team); None without peer data yet"
     )
     calls_scored: int
 
@@ -350,7 +358,8 @@ class AgentScoreBreakdown(BaseModel):
     the PRD addendum for the reasoning). Call Discipline has no defined
     scoring method in either source doc, so it's excluded and the remaining
     7 weights are renormalized to still sum to 100 rather than silently
-    capping the total at 95."""
+    capping the total at 95. Despite the name, this same shape is reused for
+    team- and org-level rollups (Phase B) — see ScoreDimensionAgg's note."""
 
     discovery_qualification: ScoreDimensionAgg
     objection_handling: ScoreDimensionAgg
@@ -485,15 +494,20 @@ class QualityOutcomeQuadrant(BaseModel):
     outcome_conversion_pct: float | None
 
 
-class AgentPerformanceReport(BaseModel):
-    """The full cross-call rollup for one agent over one period — everything
-    computed from data the app already has, plus manually-tagged outcomes.
-    See the module docstring above for what's deliberately not modeled."""
+class PerformanceMetrics(BaseModel):
+    """Shared shape for every level of the CALL -> AGENT -> TEAM ->
+    ORGANIZATION rollup (ROADMAP.md Phase B) — identical aggregation math
+    (app/performance_metrics.py), applied to a different population of
+    calls/leads at each level: one agent's calls, one team's agents' calls,
+    or every call in the org. Identity (whose numbers these are) and peer
+    comparison (benchmark vs. leaderboard) differ per level and live on the
+    subclasses below, not here.
 
-    agent_id: str
-    agent_name: str
-    team_id: str | None
-    team_name: str | None
+    Everything here is computed from data the app already has, plus
+    manually-tagged outcomes — see app/agent_performance.py's module
+    docstring for what's deliberately not modeled (dialer call volume,
+    itemized discovery fields)."""
+
     period_start: date
     period_end: date
 
@@ -525,9 +539,39 @@ class AgentPerformanceReport(BaseModel):
     weaknesses: list[StrengthWeakness]
     coaching_recommendations: list[CoachingRecommendation]
 
-    team_benchmark: list[BenchmarkRow]
     quality_outcome_matrix: QualityOutcomeQuadrant | None
 
     notes: list[str] = Field(
         default_factory=list, description="Explicit call-outs for what the source doc asked for that isn't computed here, and why"
     )
+
+
+class AgentPerformanceReport(PerformanceMetrics):
+    agent_id: str
+    agent_name: str
+    team_id: str | None
+    team_name: str | None
+    team_benchmark: list[BenchmarkRow]
+
+
+class LeaderboardRow(BaseModel):
+    """One row in an agent-within-team or team-within-org leaderboard."""
+
+    id: str
+    name: str
+    overall_score: float | None
+    conversion_rate_pct: float | None
+    calls_analyzed: int
+
+
+class TeamPerformanceReport(PerformanceMetrics):
+    team_id: str
+    team_name: str
+    manager_agent_id: str | None
+    manager_name: str | None
+    agent_leaderboard: list[LeaderboardRow]
+    org_benchmark: list[BenchmarkRow] = Field(description="This team's numbers vs. the average of every other team in the org")
+
+
+class OrgPerformanceReport(PerformanceMetrics):
+    team_leaderboard: list[LeaderboardRow]

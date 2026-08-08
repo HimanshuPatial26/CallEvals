@@ -6,14 +6,14 @@ call level and lead level, in a shape a real CRM would recognize.
 
 **Where this repo actually is today, honestly (updated 2026-08-08):** a
 working Phase 0 pipeline (F1–F4 + score/sentiment/objections/compliance/
-coaching per call), an Agent-level rollup layer, and now (Phase A + C1) a
-real roster (Team/Agent) and Lead entity — every call is attributed to a
-real `agent_id` and `lead_id`, and conversion is measured at the lead
-level, not guessed from a tag on one call. That's CALL and AGENT, solid.
-TEAM and ORGANIZATION *rollups* still don't exist — the roster has teams,
-but nothing aggregates a team's or org's numbers yet (that's Phase B, next
-up). Nothing here is "finished" at 100-agent scale yet; this document is
-the gap, broken into shippable phases.
+coaching per call), a real roster (Team/Agent) and Lead entity (Phase A),
+lead-level conversion (C1), and now Team and Organization rollups (Phase
+B) on top of the same aggregation engine the Agent layer already used.
+CALL, AGENT, TEAM, and ORGANIZATION are all real, navigable levels now —
+Organization → Team → Agent is one tab with click-to-drill-down rows, and
+Agent → Call was already there. Nothing here is "finished" at 100-agent
+scale yet (see Phase D for the storage/scale gap); this document is the
+gap, broken into shippable phases.
 
 ---
 
@@ -77,16 +77,39 @@ of the roster naturally:**
 
 ## Phase B — Team & Organization rollups (the hierarchy itself)
 
-Directly extends the pattern `app/agent_performance.py` already
-established — same math, one and two levels up.
+**Status: done (2026-08-08).** Directly extended the pattern
+`app/agent_performance.py` already established — same math, one and two
+levels up, via a new population-agnostic shared engine
+(`app/performance_metrics.py`) that `agent_performance.py`,
+`team_performance.py`, and `org_performance.py` all call with a
+pre-filtered slice of calls. Verified with 25 new backend tests (the
+shared engine directly, team pooling/leaderboard/benchmark isolation, org
+pooling/leaderboard, and the two new router endpoints — 133 passing total)
+plus a live browser pass: real seeded roster (10 teams/100 agents), two
+synthetic calls on two different teams, a lead tagged to WON, and the full
+Organization → Team → Agent click-through confirmed in a running
+frontend, including a real bug caught and fixed in that pass (see below).
 
-| # | Line item | Why | Size |
-|---|---|---|---|
-| B1 | `app/team_performance.py` — aggregate a manager's ~10 agents' rollups into one team report, with agent-vs-agent leaderboard inside the team | This is the "TEAM" layer. Reuses `AgentPerformanceReport` math, doesn't reinvent it. | M |
-| B2 | `app/org_performance.py` — aggregate all 10 teams into one org report, with team-vs-team leaderboard | This is the "ORGANIZATION" layer — "what's affecting sales performance across the business" (the analytics doc's own section 23 framing, which this repo already quoted when it built the agent layer). | M |
-| B3 | `GET /api/teams`, `GET /api/teams/{id}/performance`, `GET /api/organization/performance` | API surface for B1/B2. | S |
-| B4 | Drill-down navigation: Org dashboard → click a team → Team dashboard → click an agent → Agent dashboard → click a call → Call detail | The hierarchy should be *navigable*, not four disconnected pages. This is the actual "CALL → AGENT → TEAM → ORGANIZATION" ask. | M |
-| B5 | Team/org dashboards reuse the agent dashboard's panel components (score breakdown, funnel, sentiment, etc.) at the aggregate level | Consistency, and avoids rebuilding 7 panel components 3 more times. | M |
+| # | Line item | Why | Size | Status |
+|---|---|---|---|---|
+| B1 | `app/team_performance.py` — aggregate a manager's ~10 agents' rollups into one team report, with agent-vs-agent leaderboard inside the team | This is the "TEAM" layer. Reuses `AgentPerformanceReport` math, doesn't reinvent it. | M | **Done** |
+| B2 | `app/org_performance.py` — aggregate all 10 teams into one org report, with team-vs-team leaderboard | This is the "ORGANIZATION" layer — "what's affecting sales performance across the business" (the analytics doc's own section 23 framing, which this repo already quoted when it built the agent layer). | M | **Done** |
+| B3 | `GET /api/teams/{id}/performance`, `GET /api/organization/performance` | API surface for B1/B2. (`GET /api/teams` already existed from Phase A.) | S | **Done** |
+| B4 | Drill-down navigation: Org dashboard → click a team → Team dashboard → click an agent → Agent dashboard → click a call → Call detail | The hierarchy should be *navigable*, not four disconnected pages. This is the actual "CALL → AGENT → TEAM → ORGANIZATION" ask. | M | **Done** — one Organization tab with in-place team drill-down (leaderboard row click), handing off to the existing Agent Performance tab (agent row click) pre-selected to that agent; Agent → Call was already navigable via the Calls tab. |
+| B5 | Team/org dashboards reuse the agent dashboard's panel components (score breakdown, funnel, sentiment, etc.) at the aggregate level | Consistency, and avoids rebuilding 7 panel components 3 more times. | M | **Done** — all 7 panels genericized with optional `title`/`benchmarkTitle` props (defaults unchanged, so the Agent Performance tab needed no changes) and reused as-is by the new `OrganizationPage`; only a new `LeaderboardPanel` component was net-new. |
+
+**Bug caught during live verification, not by tests:** switching levels
+(org → team, or team → org) triggers a React re-render with the *new*
+`teamId` but the *old*, differently-shaped report (`agent_leaderboard` vs.
+`team_leaderboard`) before the refetch lands — `LeaderboardPanel` crashed
+reading `.length` off the wrong field, taking down the whole page. Fixed
+by setting `loading` synchronously in the same click handler that changes
+`teamId`, so that inconsistent-shape render never happens
+(`frontend/src/components/OrganizationPage.js`'s `selectTeam`). None of
+the 133 backend tests could
+have caught this — it's a frontend state-sequencing bug — which is exactly
+why this phase's browser pass drove the actual click-through instead of
+just checking the API responses.
 
 ---
 
@@ -182,6 +205,13 @@ lead-level conversion) — verified with 42 new/updated backend tests
 new roster/lead routers) plus a live browser pass: real teams, agents, and
 leads created through the actual API, calls attributed to them, and the
 Agent Performance dashboard confirmed showing genuinely different
-teammate-only benchmarks for two agents on different teams. **Next up:
-Team & Org rollups (B)** — the direct extension of `agent_performance.py`
-that was deferred specifically so this foundation could land first.
+teammate-only benchmarks for two agents on different teams.
+
+**Second slice shipped (2026-08-08):** Phase B (Team & Org rollups) — the
+direct extension of `agent_performance.py` deferred so the Phase A
+foundation could land first. See the Phase B section above for the full
+verification writeup. **Next up: C2–C6** (call-level conversion context,
+lost-reason taxonomy, lead source/channel, the Kanban pipeline view, and
+the lead detail page) — the rest of Phase C that wasn't needed to unblock
+Phase B, now that CALL → AGENT → TEAM → ORGANIZATION is fully real and
+navigable end to end.

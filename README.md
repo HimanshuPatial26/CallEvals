@@ -3,8 +3,9 @@
 Sales call intelligence for GCC mid-market real estate brokerages: transcript in,
 summary + next steps + objection tags out, plus a scored rubric, sentiment,
 buying intent, coaching notes, and rule-based compliance checks per call (see
-"Analytics expansion" below) — and, per agent per period, a cross-call
-performance rollup with team benchmarking (see "Agent Performance" below).
+"Analytics expansion" below) — rolled up per agent, per team, and org-wide,
+per period, each level with its own benchmark against its peers (see
+"Agent Performance" and "Team & Organization rollups" below).
 Full product spec: [docs/PRD.md](docs/PRD.md).
 
 This repo is the Phase 0 build the PRD calls for (section 9) — prove that
@@ -259,10 +260,9 @@ exercised against a *real* multi-call dataset is the full pipeline end to
 end at this volume (12+ calls through actual ASR + Gemini extraction) —
 that's a quota/budget question, not a correctness one.
 
-**What this layer is not, yet:** a TEAM or ORGANIZATION rollup — the roster
-(next section) added real teams, but nothing aggregates a team's or org's
-numbers across its agents yet. That's [docs/ROADMAP.md](docs/ROADMAP.md)
-Phase B, the next thing being built.
+**What this layer is not, yet:** call-level context beyond one agent's own
+calls — clicking through to TEAM or ORGANIZATION rollups is covered in
+"Team & Organization rollups" below.
 
 ## Roster & leads (2026-08-08) — real identity, CRM-grade conversion
 
@@ -394,6 +394,78 @@ intended to look like, real customer data. Run it with:
 cd server && source .venv/bin/activate && python -m scripts.seed_demo_roster
 ```
 
+## Team & Organization rollups (2026-08-08) — the full CALL → AGENT → TEAM → ORGANIZATION hierarchy
+
+[docs/ROADMAP.md](docs/ROADMAP.md) Phase B. Extends the Agent Performance
+layer one and two levels up, rather than reinventing it: the aggregation
+math that used to live entirely inside `agent_performance.py` was
+extracted into a new **population-agnostic engine**,
+`app/performance_metrics.py`. Its functions take an already-filtered
+`list[CallRecord]` and have no idea whether that list is one agent's
+calls, one team's calls, or every call in the org — each level's own
+module does the filtering and calls the same engine:
+
+- `app/agent_performance.py` — filters to one `agent_id` (unchanged
+  behavior, now a ~80-line wrapper instead of ~615 lines of inline math).
+- `app/team_performance.py` (new) — filters to every agent on one team;
+  peer group for benchmarking is every *other* team.
+- `app/org_performance.py` (new) — no filtering at all, every call in the
+  period; no peer group (there's one org, nothing to benchmark it against).
+
+New endpoints: `GET /api/teams/{id}/performance` and
+`GET /api/organization/performance`, same `start`/`end` query params as
+the agent endpoint. Both return a report built on the same
+`PerformanceMetrics` base Pydantic class `AgentPerformanceReport` already
+used (fields flatten into the subclass, not nested — no JSON shape change
+for the existing agent report), plus a level-specific `agent_leaderboard`
+or `team_leaderboard` (`LeaderboardRow`: id, name, overall score,
+conversion rate, calls analyzed — sorted best-first, unscored entries last
+rather than omitted).
+
+**Frontend: one Organization tab, not three disconnected pages.** It opens
+on the org-wide rollup with a team leaderboard; clicking a team row drills
+into that team's rollup (same panels, filtered population, plus an "Org
+average" benchmark and an agent leaderboard) in place, with an "← All
+teams" link back. Clicking an agent row on the team view hands off to the
+existing Agent Performance tab, pre-selected to that agent — completing
+the drill from ORGANIZATION down to a single AGENT (and from there, the
+Calls tab already reaches individual CALLs). All 7 of the Agent
+Performance dashboard's panel components are reused as-is at the team/org
+level — they took small optional `title`/`benchmarkTitle` props (defaulting
+to their original agent-level text, so the Agent Performance tab needed no
+changes) rather than being duplicated. Only one component is net-new:
+`LeaderboardPanel`.
+
+**A real bug the test suite couldn't have caught, found by actually
+clicking through the UI.** Switching levels (org → team, or back) sets
+`teamId` and lets a `useEffect` fetch the new report — but React renders
+*once* in between with the new `teamId` and the *still-old*,
+differently-shaped report (`team_leaderboard` vs. `agent_leaderboard`)
+before that fetch lands. `LeaderboardPanel` crashed reading `.length` off
+a field that didn't exist on that report shape, taking down the whole
+page — a pure frontend state-sequencing issue invisible to any backend
+test. Fixed by setting `loading` synchronously inside the same click
+handler that changes `teamId` (`OrganizationPage.js`'s `selectTeam`), so
+the inconsistent-shape render is skipped entirely rather than papered over.
+
+**Verification.** 25 new backend tests — `test_performance_metrics.py`
+(the shared engine directly: `distinct_leads`, `reached_stage_in_period`,
+`peer_benchmark` with an empty peer population, population-agnostic
+pooling), `test_team_performance.py` (team pooling is by call volume, not
+an average of per-agent averages; agent leaderboard sorting; org-benchmark
+correctly isolates *other* teams, not teammates), `test_org_performance.py`
+(org-wide pooling, team leaderboard, confirming `OrgPerformanceReport` has
+no peer-benchmark field at all), plus router tests for both new endpoints
+— 133 backend tests passing overall, including all 17 pre-existing
+agent-performance tests unchanged (pure refactor, confirmed no behavior
+drift). Then a live pass against the real seeded roster (10 teams/100
+agents): two synthetic calls saved directly to two different teams, one
+lead tagged to WON, backend responses spot-checked with `curl`, then the
+actual running frontend driven with Playwright through
+Organization → Corniche Team → Ahmed Hussain, catching the bug above,
+fixing it, and re-confirming the full click-through before cleaning the
+synthetic calls/lead back out of `server/data/`.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes
@@ -421,7 +493,10 @@ server/
     routers/         FastAPI routes
     insights.py      rule-based behavior readouts (talk time, monologues, questions, interruptions)
     compliance.py    rule-based script-adherence checks (analytics doc section 14)
-    agent_performance.py  cross-call rollups per agent/period — pure aggregation, no LLM call
+    performance_metrics.py shared, population-agnostic rollup engine behind agent/team/org performance
+    agent_performance.py  filters to one agent, calls performance_metrics.py
+    team_performance.py    filters to one team, calls performance_metrics.py
+    org_performance.py     no filtering (whole org), calls performance_metrics.py
     roster_storage.py      filesystem CRUD for Team/Agent
     lead_storage.py        filesystem CRUD for Lead, incl. stage_history append-on-change
     pipeline.py      orchestrates ASR -> extraction -> insights/compliance/overall_score
@@ -444,7 +519,9 @@ frontend/
                       AgentPerformancePage + AgentOverviewPanel,
                       AgentScoreBreakdownPanel, AgentBehaviorPanel,
                       AgentFunnelPanel, AgentSentimentIntentPanel,
-                      AgentQualityTrendPanel, AgentCoachingPanel
+                      AgentQualityTrendPanel, AgentCoachingPanel,
+                      OrganizationPage (team+org rollups, drill-down),
+                      LeaderboardPanel
     api/client.js
 docs/
   PRD.md
@@ -598,6 +675,16 @@ through the actual app (not raw curl):
   came from, so this is a volume/budget gap, not a correctness one — worth
   re-confirming against a real multi-call run before trusting the numbers
   in front of an actual manager.
+- **Team & Organization rollups are unit-tested and browser-verified
+  against a small, real-shaped dataset, not a real 100-agent volume.** The
+  aggregation math (`app/performance_metrics.py` and its team/org callers)
+  is directly unit-tested and is the same, already-verified engine the
+  Agent layer used — it doesn't care how many agents or calls it's handed.
+  The live pass used two synthetic calls across two teams against the real
+  seeded 10-team/100-agent roster, which is enough to confirm the
+  drill-down UI and the pooling/benchmark/leaderboard logic are correct,
+  but not enough to say anything about dashboard load time at real call
+  volume — that's Phase D's (storage/scale) job, not this pass's.
 - No auth, no multi-tenant storage, no CRM integration beyond the manual
   lead-stage tagging described in "Roster & leads" above — all explicitly
   Phase 1+ per the PRD roadmap (section 9). No dedup-by-phone-number on

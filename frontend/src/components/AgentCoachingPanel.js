@@ -1,7 +1,7 @@
 // Strengths/weaknesses (doc section 18) + coaching recommendations (section
 // 19) + team benchmarking (section 20), grouped as "what to do about it" —
 // the payoff of everything computed above.
-export default function AgentCoachingPanel({ strengths, weaknesses, recommendations, benchmark }) {
+export default function AgentCoachingPanel({ strengths, weaknesses, recommendations, benchmark, benchmarkTitle = "Team benchmark" }) {
   return (
     <div className="call-detail-columns">
       <section className="panel">
@@ -33,26 +33,30 @@ export default function AgentCoachingPanel({ strengths, weaknesses, recommendati
           </>
         )}
 
-        <h3>Team benchmark</h3>
-        {benchmark.length === 0 ? (
-          <p className="hint">No benchmark rows available.</p>
-        ) : (
-          <ul className="insights-list">
-            {benchmark.map((row) => (
-              <li key={row.label}>
-                <span className="insights-label">{row.label}</span>
-                <span className="insights-value">
-                  {row.agent_value.toFixed(1)}
-                  {row.comparison_value != null && (
-                    <span className="benchmark-value">
-                      {" "}
-                      ({row.comparison_label.toLowerCase()} {row.comparison_value.toFixed(1)})
+        {benchmark != null && (
+          <>
+            <h3>{benchmarkTitle}</h3>
+            {benchmark.length === 0 ? (
+              <p className="hint">No benchmark rows available.</p>
+            ) : (
+              <ul className="insights-list">
+                {benchmark.map((row) => (
+                  <li key={row.label}>
+                    <span className="insights-label">{row.label}</span>
+                    <span className="insights-value">
+                      {row.agent_value.toFixed(1)}
+                      {row.comparison_value != null && (
+                        <span className="benchmark-value">
+                          {" "}
+                          ({row.comparison_label.toLowerCase()} {row.comparison_value.toFixed(1)})
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </section>
 

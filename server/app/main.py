@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import agents, calls, leads, roster
+from app.routers import agents, calls, leads, organization, roster
 
 app = FastAPI(title="CallEvals — Sahil Phase 0")
 
@@ -18,6 +18,7 @@ app.include_router(roster.router)
 app.include_router(calls.router)
 app.include_router(agents.router)
 app.include_router(leads.router)
+app.include_router(organization.router)
 
 
 @app.get("/api/health")

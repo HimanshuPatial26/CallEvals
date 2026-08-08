@@ -102,3 +102,27 @@ def test_import_rejects_unsupported_file_type():
         files={"file": ("agents.txt", io.BytesIO(b"not a real import"), "text/plain")},
     )
     assert response.status_code == 400
+
+
+def test_team_performance_for_unknown_team_returns_404():
+    response = client.get("/api/teams/does-not-exist/performance", params={"start": "2026-08-01", "end": "2026-08-31"})
+    assert response.status_code == 404
+
+
+def test_team_performance_for_real_team_with_no_calls_returns_empty_report():
+    team = client.post("/api/teams", json={"name": "Performance Team"}).json()
+
+    response = client.get(f"/api/teams/{team['id']}/performance", params={"start": "2026-08-01", "end": "2026-08-31"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["team_id"] == team["id"]
+    assert body["team_name"] == "Performance Team"
+    assert body["calls_analyzed"] == 0
+    assert body["agent_leaderboard"] == []
+
+
+def test_team_performance_rejects_inverted_date_range():
+    response = client.get(
+        "/api/teams/does-not-exist/performance", params={"start": "2026-08-31", "end": "2026-08-01"}
+    )
+    assert response.status_code == 400

@@ -8,12 +8,10 @@ function fmtScore(value) {
 
 // Doc's own distinction: Conversation Performance ≠ Sales Outcome. Shown
 // side by side, never blended into one number.
-export default function AgentOverviewPanel({ report }) {
+export default function AgentOverviewPanel({ report, title }) {
   return (
     <section className="panel">
-      <h3>
-        {report.agent_name} — {report.period_start} to {report.period_end}
-      </h3>
+      <h3>{title ?? `${report.agent_name} — ${report.period_start} to ${report.period_end}`}</h3>
       <div className="kpi-row">
         <div className="kpi-tile">
           <span className="kpi-value">{fmtScore(report.avg_call_score)}</span>

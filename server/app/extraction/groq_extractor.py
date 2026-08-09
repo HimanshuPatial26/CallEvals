@@ -17,9 +17,16 @@ time); JSON mode (`response_format: {"type": "json_object"}`) only
 guarantees the response *parses* as JSON, not that it matches this shape.
 Pydantic validation against WireExtractionResult is what actually enforces
 the schema here — a shape-mismatched response fails loudly as a
-ValidationError instead of silently becoming wrong data. Uses plain httpx
-(already a dependency, same pattern as app/asr/deepgram_provider.py)
-instead of pulling in the groq/openai SDK for one endpoint.
+ValidationError instead of silently becoming wrong data, EXCEPT for
+objection categories: sanitize_wire_payload (common.py) drops any
+objection whose category falls outside the fixed taxonomy before
+validation runs, rather than failing the whole extraction over it. Hit in
+production: an open-weight model invented category='taxes', which isn't
+one of the 10 the prompt asks for, and the entire call (summary, score,
+next steps, every other objection) was being discarded over that one
+field. Uses plain httpx (already a dependency, same pattern as
+app/asr/deepgram_provider.py) instead of pulling in the groq/openai SDK
+for one endpoint.
 
 On a non-2xx response, the error raised includes the response body, not
 just the status code — Groq puts the actionable detail there (e.g. a 404
@@ -41,7 +48,13 @@ import httpx
 
 from app.config import settings
 from app.extraction.base import ExtractionProvider
-from app.extraction.common import EXTRACTION_PROMPT, WireExtractionResult, format_transcript, wire_to_extraction_result
+from app.extraction.common import (
+    EXTRACTION_PROMPT,
+    WireExtractionResult,
+    format_transcript,
+    sanitize_wire_payload,
+    wire_to_extraction_result,
+)
 from app.schemas import ExtractionResult, TranscriptSegment
 
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -101,5 +114,5 @@ class GroqExtractor(ExtractionProvider):
             # reads identically to a wrong-URL 404 without this).
             raise RuntimeError(f"Groq API error {response.status_code} calling {GROQ_CHAT_COMPLETIONS_URL}: {response.text}")
         content = response.json()["choices"][0]["message"]["content"]
-        wire = WireExtractionResult.model_validate(json.loads(content))
+        wire = WireExtractionResult.model_validate(sanitize_wire_payload(json.loads(content)))
         return wire_to_extraction_result(wire, transcript)

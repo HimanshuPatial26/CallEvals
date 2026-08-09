@@ -557,6 +557,51 @@ check https://console.groq.com/docs/models if this one goes stale too;
 there's no way to keep it current without network access to Groq, which
 this dev environment does not have.
 
+**Third incident (2026-08-09): one bad objection category failed the
+whole call.** A real upload hit `Processing failed: 1 validation error for
+WireExtractionResult objections.1.category ... Input should be 'price',
+'timing', ... 'switching_cost' [input_value='taxes']`. The extractor
+invented `taxes` as an objection category — a real, plausible objection
+in a real-estate call, just not one of the 10 the prompt (and the
+`ObjectionCategory` enum) asks for. Groq's open-weight models have no
+schema-constrained decoding the way Gemini's `response_schema` mode does
+(see above), so nothing actually stops a model from returning a value
+outside the taxonomy despite the prompt saying "skip anything that
+doesn't clearly fit."
+
+The bug wasn't the invented category itself — some drift there is
+expected from an LLM boundary — it was the blast radius: Pydantic
+rejected the *entire* `WireExtractionResult` over that one field,
+discarding a correctly-extracted summary, score breakdown, next steps,
+sentiment, buying intent, coaching, and every *other* valid objection
+along with it, and forcing a full re-upload (re-paying ASR + LLM cost) to
+get anything at all.
+
+**Fix:** `sanitize_wire_payload()` in `app/extraction/common.py` runs on
+the raw JSON dict before Pydantic validation, for both providers (this
+wasn't Groq-specific — Gemini's `response.parsed` can also fall back to
+manual parsing). It drops only the objection(s) with an unrecognized
+category (logged via `logging.warning`, not silent) and normalizes case
+(`"Price"` → `"price"`) rather than losing a valid objection to a casing
+mismatch. Everything else in the payload is untouched — a manager loses
+one objection tag on the call, not the entire analysis.
+
+**Verification.** 5 new tests in `test_gemini_extractor_helpers.py`:
+drops an out-of-taxonomy category while keeping valid ones, normalizes
+case, leaves an all-valid payload byte-for-byte unchanged, tolerates a
+missing/non-list `objections` key, and an end-to-end regression that
+replays the exact reported payload shape (`category='taxes'` alongside a
+valid `price` objection) through `WireExtractionResult.model_validate`
+and confirms it now succeeds with the one valid objection surviving.
+Caught a real bug in the first draft of the fix during this pass: the
+function's "did anything change" tracking only fired on *drops*, so a
+category that was valid-but-differently-cased (`"Price"`) got silently
+kept unnormalized because the function took its early-return path before
+applying the casing fix — the normalize-case test failed against the
+real function, not a hypothetical, and pointed straight at the bug. Fixed
+by tracking "changed" (drop OR normalize) instead of "dropped" alone.
+163 backend tests passing overall.
+
 ## Lead pipeline (2026-08-08) — Kanban board, ROADMAP.md C5
 
 **Why this before C2–C4/C6:** taken out of order at explicit request — it's

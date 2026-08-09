@@ -12,6 +12,8 @@ hallucinate its way around as easily, and it keeps the "click through to
 the transcript" trust mechanism (PRD section 10) actually accurate.
 """
 
+import logging
+
 from pydantic import BaseModel
 
 from app.schemas import (
@@ -29,6 +31,8 @@ from app.schemas import (
     Speaker,
     TranscriptSegment,
 )
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_PROMPT = """You are analyzing a sales call transcript for a real-estate \
 brokerage sales manager. Extract the following:
@@ -158,6 +162,53 @@ class WireExtractionResult(BaseModel):
     buying_intent: WireBuyingIntent
     coaching: WireCoaching
     score_breakdown: WireScoreBreakdown
+
+
+_VALID_OBJECTION_CATEGORIES = {c.value for c in ObjectionCategory}
+
+
+def sanitize_wire_payload(data: dict) -> dict:
+    """Defensive boundary for untrusted LLM output. The prompt asks for
+    objections from a closed 10-category taxonomy only ("skip anything that
+    doesn't clearly fit"), but nothing enforces that at generation time for
+    every provider -- Groq's open-weight models have no schema-constrained
+    decoding to fall back on (see groq_extractor.py), and Gemini's
+    response_schema mode isn't a hard guarantee either. Production hit this
+    directly: a call failed outright on `category='taxes'`, an out-of-
+    taxonomy value the model invented for a real objection.
+
+    Pydantic would reject the *entire* extraction over one bad category
+    string in an otherwise-valid objections list -- discarding a real
+    summary, score breakdown, next steps, sentiment, and every other valid
+    objection along with it, and forcing a costly ASR+LLM re-run. Dropping
+    just the offending objection(s) (logged, not silent) is a much smaller
+    loss than losing the whole call's analysis.
+    """
+    objections = data.get("objections")
+    if not isinstance(objections, list):
+        return data
+
+    kept = []
+    changed = False
+    for obj in objections:
+        category = obj.get("category") if isinstance(obj, dict) else None
+        normalized = category.lower() if isinstance(category, str) else None
+        if normalized in _VALID_OBJECTION_CATEGORIES:
+            if normalized != category:
+                obj = {**obj, "category": normalized}
+                changed = True
+            kept.append(obj)
+        else:
+            changed = True
+            logger.warning(
+                "Dropping objection with category %r -- not in the fixed taxonomy %s",
+                category,
+                sorted(_VALID_OBJECTION_CATEGORIES),
+            )
+
+    if not changed:
+        return data
+    return {**data, "objections": kept}
 
 
 def format_transcript(transcript: list[TranscriptSegment]) -> str:

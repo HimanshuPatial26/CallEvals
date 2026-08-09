@@ -14,7 +14,13 @@ from google.genai import types
 
 from app.config import settings
 from app.extraction.base import ExtractionProvider
-from app.extraction.common import EXTRACTION_PROMPT, WireExtractionResult, format_transcript, wire_to_extraction_result
+from app.extraction.common import (
+    EXTRACTION_PROMPT,
+    WireExtractionResult,
+    format_transcript,
+    sanitize_wire_payload,
+    wire_to_extraction_result,
+)
 from app.schemas import ExtractionResult, TranscriptSegment
 
 
@@ -40,6 +46,6 @@ class GeminiExtractor(ExtractionProvider):
 
         wire = response.parsed
         if wire is None:
-            wire = WireExtractionResult.model_validate(json.loads(response.text))
+            wire = WireExtractionResult.model_validate(sanitize_wire_payload(json.loads(response.text)))
 
         return wire_to_extraction_result(wire, transcript)

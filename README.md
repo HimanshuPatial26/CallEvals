@@ -840,6 +840,55 @@ different colors side by side, and the categorical objection-tag and
 sentiment/intent badges were untouched by the swap. Seed data removed
 from `server/data/` afterward.
 
+### Animated score hero (2026-08-08) — React Bits "Strands" on the call screen
+
+An ambient WebGL background (React Bits' `Strands` component, built on
+`ogl`) behind the overall score number on the CallDetail page — the
+single most important number on that screen. `Strands.js`/`Strands.css`
+are the component as published, unmodified; the integration work was
+deciding where it belongs and tuning it to fit.
+
+**Placement, not a redesign.** Rather than a full-page background (risky
+on a page this data-dense — six-plus panels of transcript, objections,
+sentiment, coaching, compliance below it), the animation is scoped to a
+new `.score-hero` modifier on the existing `.overall-score` wrapper in
+`ScoreBreakdownPanel.js` only — `AgentScoreBreakdownPanel.js` (used on the
+Agent/Team/Org pages) shares the base `.overall-score`/`.overall-score-value`
+classes but was deliberately left untouched, confirmed via a Playwright
+canvas count on the Organization page (0). Colors pulled from the Amber
+Ledger token set (`#f0923e` amber, `#2dd4bf` teal, `#d9752c` deep orange)
+so it reads as part of the theme rather than a bolted-on effect; `speed`,
+`intensity`, `opacity`, and `scale` were all turned down from the
+component's own defaults (0.35/0.45/0.55/1.9 vs. defaults of
+0.5/0.6/1/1.5) so it stays ambient rather than competing with the score
+digits for attention.
+
+**Legibility over the moving background** was the real design problem,
+not the animation itself: a `radial-gradient` scrim
+(`.score-hero-backdrop::after`) fades the canvas back to the panel's own
+background color under the text, and the score digits get a
+`text-shadow` and `z-index` above the canvas, so "100/100" stays readable
+regardless of what the strands are doing underneath at any given frame —
+checked by diffing two screenshots taken 1.5s apart (confirmed the canvas
+is genuinely animating, not a static frame) with the score still legible
+in both.
+
+**Respects `prefers-reduced-motion`.** A `usePrefersReducedMotion` hook
+skips mounting the `<Strands>` component (and therefore the WebGL
+context) entirely when the OS-level setting is on — not just a CSS
+animation-pause, so reduced-motion users also don't pay the GPU/battery
+cost. Verified with Playwright's `reducedMotion: 'reduce'` context option:
+0 canvas elements render, and the score hero falls back to a plain static
+panel.
+
+**Verification.** `npm install ogl` (new runtime dependency, not a
+devDependency). Live Playwright pass: rendered correctly under this
+sandbox's software-WebGL fallback (Chromium logs an expected
+SwiftShader-fallback warning, no errors), confirmed genuinely animating
+frame-to-frame, confirmed absent under reduced-motion, confirmed the
+Organization/Agent Performance score panels are unaffected. 158 backend
+tests still passing (frontend-only change).
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

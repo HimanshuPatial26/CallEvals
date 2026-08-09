@@ -1,3 +1,19 @@
+import { useEffect, useState } from "react";
+import Strands from "./Strands";
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return reduced;
+}
+
 const DIMENSION_LABELS = {
   opening_rapport: "Opening & rapport",
   discovery_qualification: "Discovery & qualification",
@@ -12,6 +28,8 @@ const DIMENSION_LABELS = {
 // "every score should be supported by transcript evidence rather than being
 // a black-box number") — shown here, not hidden behind a tooltip.
 export default function ScoreBreakdownPanel({ scoreBreakdown, compliance, overallScore }) {
+  const reducedMotion = usePrefersReducedMotion();
+
   if (!scoreBreakdown) {
     return <p className="hint">No score breakdown for this call.</p>;
   }
@@ -20,7 +38,26 @@ export default function ScoreBreakdownPanel({ scoreBreakdown, compliance, overal
 
   return (
     <div className="score-breakdown">
-      <div className="overall-score">
+      <div className="overall-score score-hero">
+        {!reducedMotion && (
+          <div className="score-hero-backdrop" aria-hidden="true">
+            <Strands
+              colors={["#f0923e", "#2dd4bf", "#d9752c"]}
+              count={3}
+              speed={0.35}
+              amplitude={0.7}
+              waviness={0.9}
+              thickness={0.55}
+              glow={1.9}
+              taper={2.6}
+              spread={1.15}
+              intensity={0.45}
+              saturation={1.05}
+              opacity={0.55}
+              scale={1.9}
+            />
+          </div>
+        )}
         <span className="overall-score-value">{overallScore != null ? Math.round(overallScore) : "—"}</span>
         <span className="overall-score-max">/100</span>
       </div>

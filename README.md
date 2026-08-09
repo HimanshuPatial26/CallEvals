@@ -1101,6 +1101,24 @@ or bleed into neighboring panels. 0 console errors. 163 backend tests
 still passing (frontend-only change; only `UploadPanel.js`,
 `App.css`, and the two new `BorderGlow.*` files changed).
 
+### Empty-state Strands: dropped the panel box (2026-08-09)
+
+Follow-up on the same panel from the token-mismatch fix above — after
+that fix it correctly looked like a panel, but the ask this time was the
+opposite: no panel at all. `.call-empty-state` dropped `background`,
+`border`, and `box-shadow` (all set to `transparent`/`none`), and
+`overflow: hidden`/`backdrop-filter` came out too since they only existed
+to serve the box look. The strands now render directly against the page,
+with no rectangle, edge, or corner-radius anywhere around them.
+
+The text-legibility scrim (`.call-empty-backdrop::after`) still exists —
+without it the "Select a call to review it." text would be unreadable
+wherever a bright strand happens to cross behind it — but it now fades to
+`--bg-base` (the page's own background token) instead of
+`--bg-panel-solid` (a panel-tinted color), so the one soft radial fade
+that remains matches the true page backdrop instead of implying a
+container that isn't there anymore.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

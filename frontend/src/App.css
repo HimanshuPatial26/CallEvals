@@ -1018,12 +1018,9 @@ button:not(:disabled):active {
    capped so it never forces a scroll on a short viewport. */
 .call-empty-state {
   position: relative;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--bg-panel);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(14px);
+  background: transparent;
+  border: none;
+  box-shadow: none;
   min-height: min(560px, calc(100vh - 210px));
   display: flex;
   align-items: center;
@@ -1041,7 +1038,7 @@ button:not(:disabled):active {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(58% 52% at 50% 50%, var(--bg-panel-solid) 0%, transparent 74%);
+  background: radial-gradient(58% 52% at 50% 50%, var(--bg-base) 0%, transparent 74%);
 }
 
 .call-empty-content {

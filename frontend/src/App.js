@@ -128,7 +128,7 @@ function App() {
 
               <main className="main">
                 {selectedCall ? (
-                  <CallDetail call={selectedCall} onFeedbackChange={handleFeedbackChange} />
+                  <CallDetail key={selectedCall.id} call={selectedCall} onFeedbackChange={handleFeedbackChange} />
                 ) : (
                   <CallEmptyState />
                 )}

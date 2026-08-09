@@ -974,6 +974,70 @@ hook refactor (no regressions from moving `usePrefersReducedMotion` out
 of `ScoreBreakdownPanel.js`). 163 backend tests still passing
 (frontend-only change).
 
+### Finishing pass (2026-08-09) — self-hosted fonts, focus states, motion
+
+**The fonts were never actually loading.** `App.css`'s design tokens have
+named `"Space Grotesk"`/`"JetBrains Mono"` as the first-choice fonts since
+the original reskin, but the Google Fonts `@import` that would have
+fetched them was deliberately removed earlier (see "Animated score hero"
+section above — it caused a real `ERR_CONNECTION_RESET` and a 30s
+`page.goto` hang on this network). Every screenshot since then was
+actually rendering in the `system-ui` fallback, not the intended
+typeface. Fixed properly this time instead of re-adding the same risk:
+`@fontsource/space-grotesk` and `@fontsource/jetbrains-mono` (weights
+400/500/600/700 and 400/500/600) are now real npm dependencies, imported
+once in `index.js` and bundled by webpack — the font files ship with the
+build and are served from the app's own origin, so there's no runtime
+fetch to `fonts.googleapis.com` to fail. Verified with
+`document.fonts.check()` (not just reading the CSS `font-family`
+property, which reports the declared value regardless of whether it
+loaded) — both families report `loaded`, and a live screenshot shows the
+visibly different letterforms.
+
+**Keyboard focus was inconsistent.** Only 3 components had explicit
+`:focus` styling; everything else fell back to the browser's default blue
+outline, which reads as visually broken against this dark theme. A single
+`:focus-visible` rule now covers every button/select/input/textarea/link
+with a consistent amber ring — `:focus-visible` specifically, so it only
+appears for keyboard navigation, not every mouse click. Verified by
+tabbing through the Calls page and screenshotting the ring on the agent
+`<select>`.
+
+**Reduced-motion had a real gap.** The Strands background already skipped
+mounting its WebGL canvas under `prefers-reduced-motion: reduce` (JS-side,
+per-component). Everything else on the page — modal entrances, the model-
+status sweep, the pulsing status dot — was still a plain CSS `animation`
+with no reduced-motion handling at all. A global `@media
+(prefers-reduced-motion: reduce)` rule now collapses every
+animation/transition duration to effectively zero for users with that OS
+setting, closing the gap for every animated element at once instead of
+patching them one at a time.
+
+**Motion added:**
+- Tab switches and call selection now fade in (`.app-content > *` /
+  `.main > *`, both keyed off a genuine React mount — tab switches render
+  a different component type at that tree position and calls now carry
+  `key={selectedCall.id}` — so the CSS mount-triggered `fade-in` animation
+  actually re-fires each time instead of only playing once on first load).
+- Buttons get a tactile `scale(0.97)` on `:active` press, skipped
+  automatically for reduced-motion users by the global media query above.
+
+**What this pass deliberately didn't touch:** per-panel staggered
+entrance animations, hover affordances on non-interactive elements (KPI
+tiles, leaderboard rows) — adding a hover state to something that isn't
+clickable is a false affordance, not polish — and any layout restructuring.
+The four tabs, CallDetail, and the Kanban board were already screenshot-
+verified panel-by-panel across the last several passes; this round is the
+typography/motion/accessibility layer on top of that, not a redesign.
+
+**Verification.** Live Playwright pass across Calls (empty + populated),
+Agent Performance, and Leads (board + modal open): confirmed fonts load
+before/after the fix via `document.fonts.check()`, confirmed the focus
+ring renders on keyboard tab, confirmed 0 console errors, confirmed the
+Kanban lead-detail modal's entrance animation and the new fonts render
+correctly together. 163 backend tests still passing (frontend-only
+change).
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

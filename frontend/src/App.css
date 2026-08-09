@@ -91,6 +91,39 @@ a:hover {
   color: #ffd9ad;
 }
 
+/* One consistent keyboard-focus ring for every interactive element,
+   instead of the sparse per-component :focus rules this theme shipped
+   with (browser default outlines read as visually broken against a dark
+   background). :focus-visible so mouse clicks don't show it. */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent-purple-bright);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Tactile press feedback on anything clickable that isn't already
+   handling its own :active state (modal buttons, feedback pills, etc.
+   keep their existing color-based feedback). */
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -399,6 +432,17 @@ a:hover {
 .app-content {
   flex: 1;
   min-width: 0;
+}
+
+/* Tab switches and call selection genuinely remount their root element
+   (different component / new key), so a plain mount-triggered animation
+   here re-fires correctly without any JS timing logic. */
+.app-content > * {
+  animation: fade-in 220ms ease;
+}
+
+.main > * {
+  animation: fade-in 200ms ease;
 }
 
 /* ---------- Assist panel ---------- */

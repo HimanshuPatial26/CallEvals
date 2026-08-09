@@ -95,12 +95,20 @@ export default function UploadPanel({ onUploaded }) {
         disabled={busy}
       />
 
-      <label className="upload-label">
-        <input ref={inputRef} type="file" accept="audio/*" onChange={handleChange} disabled={busy} />
-        {busy ? "Uploading…" : "Upload a call recording"}
-      </label>
+      <div className="upload-button-row">
+        <label className="upload-button">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="audio/*"
+            onChange={handleChange}
+            disabled={busy}
+            className="upload-button-input"
+          />
+          {busy ? "Uploading…" : "Upload a call recording"}
+        </label>
+      </div>
       {error && <p className="error">{error}</p>}
-      <p className="hint">Dual-channel (stereo) files get real speaker separation. Mono files are labeled "unknown" — diarization is a Phase 1 add.</p>
     </BorderGlow>
   );
 }

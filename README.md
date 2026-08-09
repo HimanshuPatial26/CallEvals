@@ -1119,6 +1119,43 @@ wherever a bright strand happens to cross behind it — but it now fades to
 that remains matches the true page backdrop instead of implying a
 container that isn't there anymore.
 
+### Upload button restyle + dropped the diarization hint (2026-08-09)
+
+Replaced the native `<input type="file">`'s default browser chrome (the
+"Choose File / No file chosen" control visible in every earlier
+screenshot — the one piece of the Calls tab that never got themed,
+since file inputs can't be restyled directly) with a pill-shaped button,
+using a design supplied verbatim: white background, uppercase label,
+green hover with a lift + glow, colors kept exactly as given rather than
+reskinned to the app's amber palette. Also removed the "Dual-channel
+(stereo) files get real speaker separation..." hint paragraph below it,
+per direct request.
+
+**Stayed functional, not just decorative.** The real `<input type="file"
+accept="audio/*">` is still there and still does the work (still fires
+`handleChange`, still disables during upload) — only visually hidden via
+the standard clip-rect "sr-only" technique, not `display: none`, so it
+stays keyboard-focusable and in the accessibility tree. The visible
+`<label>` wraps it, which is what makes clicking the pretty button open
+the native file picker — confirmed directly with Playwright's
+`filechooser` event, not assumed. Added a `:has(input:disabled)` rule so
+the button dims during upload (previously implicit from the native
+control's own disabled look) and a `:has(input:focus-visible)` rule so
+tabbing to the hidden input still shows a visible ring on the button
+that represents it — both real gaps a straight "hide the input, style
+the label" swap would otherwise introduce silently.
+
+Scoped to `.upload-button` (not a bare `button` selector, which is
+literally what the supplied CSS used) so the design doesn't leak onto
+every other button in the app — "Save stage," "Ask CallEvals," and every
+modal action button all keep their existing theme styling.
+
+**Verification.** Live Playwright pass: idle and hover states
+screenshotted and match the supplied design exactly (white → green,
+lift, glow); clicking the button opens a real file chooser with
+`accept="audio/*"` still applied; 0 console errors. 163 backend tests
+still passing (frontend-only change).
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

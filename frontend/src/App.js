@@ -4,6 +4,7 @@ import { listCalls } from "./api/client";
 import UploadPanel from "./components/UploadPanel";
 import CallList from "./components/CallList";
 import CallDetail from "./components/CallDetail";
+import CallEmptyState from "./components/CallEmptyState";
 import AgentPerformancePage from "./components/AgentPerformancePage";
 import OrganizationPage from "./components/OrganizationPage";
 import LeadPipelinePage from "./components/LeadPipelinePage";
@@ -129,7 +130,7 @@ function App() {
                 {selectedCall ? (
                   <CallDetail call={selectedCall} onFeedbackChange={handleFeedbackChange} />
                 ) : (
-                  <p className="hint">Select a call to review it.</p>
+                  <CallEmptyState />
                 )}
               </main>
             </div>

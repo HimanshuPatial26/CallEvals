@@ -934,6 +934,46 @@ frame-to-frame, confirmed absent under reduced-motion, confirmed the
 Organization/Agent Performance score panels are unaffected. 158 backend
 tests still passing (frontend-only change).
 
+### Strands on the Calls tab's empty state (2026-08-09)
+
+Extended the same `Strands` background to the right-hand panel shown
+before a call is selected ("Select a call to review it.") — previously a
+single line of muted `<p className="hint">` text with no visual weight,
+sitting in a mostly-empty flex row next to the upload/call-list sidebar.
+
+**`usePrefersReducedMotion` extracted to `src/hooks/`.** It was private to
+`ScoreBreakdownPanel.js`; a second consumer (`CallEmptyState.js`) made
+duplicating it the wrong call, so it's now a shared hook both components
+import.
+
+**Sizing took real tuning, not a guess.** The score-hero band is a wide,
+short strip (~700×110px) — good for one flat wave across the width. The
+empty-state panel is a much taller, closer-to-square area (~990×540px in
+the reference viewport), and reusing the score-hero's tuning made the
+strands collapse into one thin horizontal streak, leaving most of the
+panel's height empty. Fixed by tuning `amplitude` way up (0.7 → 3.2) and
+`scale` down (1.9 → 1.3) specifically for this container's aspect ratio,
+plus `taper` down (2.6 → 1.4) so the weave doesn't pinch to a point before
+reaching the panel edges — verified by screenshotting three different
+points in the animation cycle and confirming the fill looks intentional
+(not a lucky freeze-frame) in all three, not just the first one checked.
+`min-height: min(560px, calc(100vh - 210px))` keeps the panel substantial
+on a normal screen without forcing a scroll on a short one.
+
+Same legibility approach as the score hero: a radial-gradient scrim
+(`.call-empty-backdrop::after`) centered behind the text, `text-shadow`
+on both lines, and the same `usePrefersReducedMotion` guard (0 canvas
+elements under `reducedMotion: 'reduce'`, verified directly).
+
+**Verification.** Live Playwright pass at 1600×950: confirmed the panel
+fills the available width/height without overflow, confirmed the text
+stays legible across three animation frames ~2s apart (not just a static
+check), confirmed reduced-motion still renders 0 canvases, confirmed the
+populated CallDetail score-hero still renders correctly after the shared-
+hook refactor (no regressions from moving `usePrefersReducedMotion` out
+of `ScoreBreakdownPanel.js`). 163 backend tests still passing
+(frontend-only change).
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

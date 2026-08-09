@@ -1059,6 +1059,48 @@ multi-stop gradient token as its color). Both now visually match the
 surrounding panels. 163 backend tests still passing (frontend-only
 change).
 
+### BorderGlow on the upload panel (2026-08-09)
+
+Integrated React Bits' `BorderGlow` component (unmodified,
+`BorderGlow.js`/`BorderGlow.css` as published — a pointer-tracked mesh-
+gradient border + directional glow, plus an optional one-time intro
+sweep) on the specific box the user pointed at: the Calls tab's upload
+panel (`UploadPanel.js` — agent select, lead ID, file input).
+
+**Replaced the outer `.panel` wrapper, not layered on top of it.**
+BorderGlow's own CSS already provides background/border/radius/shadow, so
+`UploadPanel.js`'s root element changed from `<div className="panel
+upload-panel">` to `<BorderGlow className="upload-panel" ...>` — using
+both would have doubled up two different card treatments. `.panel`'s
+`padding: 20px` and `margin-bottom: 16px` (needed for the sidebar's flex
+spacing against the call list below it) don't exist on BorderGlow by
+default, so two small scoped rules (`.upload-panel` /
+`.upload-panel .border-glow-inner`) restore exactly those two values —
+nothing else about the box's sizing changed.
+
+**Colors pulled from the theme, not the component's own defaults.**
+`glowColor` is the amber accent (`#f0923e`) converted to the component's
+`"H S L"` string format (`28 86 59`, computed directly from the hex, not
+eyeballed), and `colors` (the three-stop mesh-gradient border) is the
+same `[amber, teal, deep-orange]` triad established for the Strands work
+above, so this reads as the same design system, not a different
+component's default rainbow palette bolted on.
+
+**`glowRadius` turned down from the 40px default to 22px.** The upload
+panel sits in a 300px sidebar column with a call list directly below it;
+the default radius's outer glow layer (`inset: -40px`) would have pushed
+noticeably past the sidebar's edges and toward the call list. Verified at
+22px it stays visually contained without materially cropping the glow.
+
+**Verification.** Live Playwright pass: idle state (mouse away) shows no
+glow, matching the component's own hover-only design; the intro sweep
+animation plays once on mount using the theme colors; moving the pointer
+near an edge produces the directional glow cone; a full-page screenshot
+with a populated call list underneath confirms no layout shift, clipping,
+or bleed into neighboring panels. 0 console errors. 163 backend tests
+still passing (frontend-only change; only `UploadPanel.js`,
+`App.css`, and the two new `BorderGlow.*` files changed).
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

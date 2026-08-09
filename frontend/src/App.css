@@ -521,6 +521,17 @@ button:not(:disabled):active {
   margin-bottom: 16px;
 }
 
+/* UploadPanel: a BorderGlow card instead of .panel, so it needs the same
+   spacing (margin below it in the sidebar stack, padding around its
+   fields) applied explicitly -- BorderGlow's own CSS provides none. */
+.upload-panel {
+  margin-bottom: 16px;
+}
+
+.upload-panel .border-glow-inner {
+  padding: 20px;
+}
+
 .panel h3 {
   margin: 0 0 14px;
   font-size: 15px;

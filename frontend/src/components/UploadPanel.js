@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { listAgents, uploadCall } from "../api/client";
+import BorderGlow from "./BorderGlow";
 
 const LAST_AGENT_KEY = "callevals.lastAgentId";
 
@@ -55,7 +56,19 @@ export default function UploadPanel({ onUploaded }) {
   }
 
   return (
-    <div className="panel upload-panel">
+    <BorderGlow
+      className="upload-panel"
+      backgroundColor="rgba(13, 24, 26, 0.9)"
+      borderRadius={16}
+      glowColor="28 86 59"
+      glowRadius={22}
+      glowIntensity={1.3}
+      coneSpread={30}
+      edgeSensitivity={35}
+      fillOpacity={0.45}
+      colors={["#f0923e", "#2dd4bf", "#d9752c"]}
+      animated
+    >
       <label className="upload-label" htmlFor="agent-select">
         Agent
       </label>
@@ -88,6 +101,6 @@ export default function UploadPanel({ onUploaded }) {
       </label>
       {error && <p className="error">{error}</p>}
       <p className="hint">Dual-channel (stereo) files get real speaker separation. Mono files are labeled "unknown" — diarization is a Phase 1 add.</p>
-    </div>
+    </BorderGlow>
   );
 }

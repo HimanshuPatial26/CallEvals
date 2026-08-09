@@ -1038,6 +1038,27 @@ Kanban lead-detail modal's entrance animation and the new fonts render
 correctly together. 163 backend tests still passing (frontend-only
 change).
 
+**Follow-up fix, same day:** the Strands empty-state panel (previous
+section) and the CallDetail score hero both used `--bg-inset` for their
+background — a design-token mix-up. `--bg-inset` is this theme's
+convention for *recessed* form elements (text inputs, small buttons,
+`<select>`s — every other real usage of it in `App.css` is one of those);
+every actual card/panel surface, including nested ones like `.kpi-tile`,
+uses `--bg-panel` (a soft amber-tinted gradient) plus `border: var(--border)`,
+`box-shadow: var(--shadow-panel)`, and `backdrop-filter: blur(14px)`. Using
+the wrong token made both Strands panels render as a flat, hard-edged
+black rectangle that didn't read as part of the UI at all — reported by
+the user against a real screenshot, not caught by any of the automated
+screenshot passes above since none of them compared the panel's
+background token against its siblings. Fixed by switching both to
+`--bg-panel`/`--border`/`--shadow-panel`/blur (matching `.panel` and
+`.kpi-tile` exactly), and their radial-gradient scrims from `--bg-inset`
+to `--bg-panel-solid` (the flat-color panel background already used by
+`.modal`, needed here since a `radial-gradient` stop can't take a
+multi-stop gradient token as its color). Both now visually match the
+surrounding panels. 163 backend tests still passing (frontend-only
+change).
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

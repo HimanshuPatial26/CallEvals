@@ -978,8 +978,8 @@ button:not(:disabled):active {
   padding: 20px 22px;
   display: flex;
   align-items: flex-end;
-  background: var(--bg-inset);
-  border: 1px solid var(--border-soft);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
 }
 
 .score-hero-backdrop {
@@ -992,7 +992,7 @@ button:not(:disabled):active {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(120% 140% at 0% 100%, transparent 0%, var(--bg-inset) 78%);
+  background: radial-gradient(120% 140% at 0% 100%, transparent 0%, var(--bg-panel-solid) 78%);
 }
 
 .score-hero .overall-score-value,
@@ -1009,8 +1009,10 @@ button:not(:disabled):active {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-soft);
-  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(14px);
   min-height: min(560px, calc(100vh - 210px));
   display: flex;
   align-items: center;
@@ -1028,7 +1030,7 @@ button:not(:disabled):active {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(58% 52% at 50% 50%, var(--bg-inset) 0%, transparent 74%);
+  background: radial-gradient(58% 52% at 50% 50%, var(--bg-panel-solid) 0%, transparent 74%);
 }
 
 .call-empty-content {

@@ -573,10 +573,10 @@ button:not(:disabled):active {
 
 .upload-button {
   display: inline-block;
-  padding: 1.3em 3em;
-  font-size: 12px;
+  padding: 0.65em 1.5em;
+  font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 2.5px;
+  letter-spacing: 1.5px;
   font-weight: 500;
   color: #000;
   background-color: #fff;
@@ -591,9 +591,9 @@ button:not(:disabled):active {
 
 .upload-button:hover {
   background-color: #23c483;
-  box-shadow: 0px 15px 20px rgba(46, 229, 157, 0.4);
+  box-shadow: 0px 10px 15px rgba(46, 229, 157, 0.4);
   color: #fff;
-  transform: translateY(-7px);
+  transform: translateY(-3px);
 }
 
 .upload-button:active {

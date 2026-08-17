@@ -568,7 +568,7 @@ button:not(:disabled):active {
 .upload-button-row {
   display: flex;
   justify-content: center;
-  margin-top: 0.7rem;
+  margin-top: 1.2rem;
 }
 
 .upload-button {

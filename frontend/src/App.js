@@ -8,6 +8,7 @@ import CallEmptyState from "./components/CallEmptyState";
 import AgentPerformancePage from "./components/AgentPerformancePage";
 import OrganizationPage from "./components/OrganizationPage";
 import LeadPipelinePage from "./components/LeadPipelinePage";
+import LineSidebar from "./components/LineSidebar";
 
 const NAV_ITEMS = [
   { key: "calls", label: "Calls", crumb: "LIBRARY / CALLS", title: "Call inbox" },
@@ -59,6 +60,8 @@ function App() {
   const selectedCall = calls.find((c) => c.id === selectedId);
   const processingCount = useMemo(() => calls.filter((c) => c.status === "processing").length, [calls]);
   const active = NAV_ITEMS.find((item) => item.key === tab) || NAV_ITEMS[0];
+  const navLabels = NAV_ITEMS.map((item) => (item.key === "calls" ? `${item.label} · ${calls.length}` : item.label));
+  const activeNavIndex = NAV_ITEMS.findIndex((item) => item.key === tab);
 
   return (
     <div className="app">
@@ -71,16 +74,36 @@ function App() {
           </div>
         </div>
 
-        <nav className="side-nav">
+        <div className="side-nav">
           <div className="side-nav-heading">NAVIGATION</div>
-          {NAV_ITEMS.map((item) => (
-            <button key={item.key} className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>
-              <span className="side-nav-dot" />
-              <span className="side-nav-label">{item.label}</span>
-              {item.key === "calls" && <span className="side-nav-badge">{calls.length}</span>}
-            </button>
-          ))}
-        </nav>
+          <LineSidebar
+            // Remounted on every tab change (including ones that don't
+            // originate from clicking the sidebar itself, e.g. the
+            // Organization page's "drill into agent" link): LineSidebar
+            // only exposes an initial defaultActive, not a controlled
+            // active index, so a fresh mount is how its highlighted item
+            // stays in sync with which page is actually showing.
+            key={tab}
+            items={navLabels}
+            accentColor="#f0923e"
+            textColor="#9db6b3"
+            markerColor="#56716e"
+            showIndex
+            showMarker
+            proximityRadius={55}
+            maxShift={10}
+            falloff="smooth"
+            markerLength={20}
+            markerGap={8}
+            tickScale={0.5}
+            scaleTick
+            itemGap={22}
+            fontSize={0.92}
+            smoothing={80}
+            defaultActive={activeNavIndex}
+            onItemClick={(index) => setTab(NAV_ITEMS[index].key)}
+          />
+        </div>
 
         <div className="model-status">
           <div className="model-status-head">

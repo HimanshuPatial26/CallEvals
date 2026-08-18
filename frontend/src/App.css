@@ -251,54 +251,15 @@ button:not(:disabled):active {
   padding: 0 8px 8px;
 }
 
-.side-nav button {
-  all: unset;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 11px;
-  border-radius: 10px;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  border: 1px solid transparent;
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
-}
-
-.side-nav button:hover {
-  background: var(--bg-hover);
-  color: #fff1e0;
-}
-
-.side-nav button.active {
-  border-color: var(--border-strong);
-  background: rgba(240, 146, 62, 0.2);
-  color: #fff3e6;
-}
-
-.side-nav-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 2px;
-  background: #3a4d4b;
-  flex-shrink: 0;
-}
-
-.side-nav button.active .side-nav-dot {
-  background: var(--accent-purple-bright);
-  box-shadow: 0 0 8px var(--accent-purple-bright);
-}
-
-.side-nav-label {
-  flex: 1;
-}
-
-.side-nav-badge {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--text-muted);
+/* LineSidebar itself is unstyled beyond its own component CSS (colors
+   come in as props); this just gives its <li> items the same keyboard-
+   focus ring as everything else, since the published markup has no
+   focus style of its own -- see the tabIndex/role patch in
+   LineSidebar.js for why they're focusable at all. */
+.line-sidebar__item:focus-visible {
+  outline: 2px solid var(--accent-purple-bright);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 .model-status {

@@ -1156,6 +1156,69 @@ lift, glow); clicking the button opens a real file chooser with
 `accept="audio/*"` still applied; 0 console errors. 163 backend tests
 still passing (frontend-only change).
 
+### LineSidebar replaces the sidebar nav (2026-08-09)
+
+Integrated React Bits' `LineSidebar` (unmodified except one accessibility
+patch, below) as the main navigation in `App.js`'s `<aside
+className="app-sidebar">`, replacing the plain button list — the four
+tabs (Calls, Agent Performance, Organization, Leads) are now the
+cursor-proximity line list from the reference, with the numbered
+index, marker ticks, and color/shift lerp on hover.
+
+**Two real integration problems the drop-in usage example doesn't
+address, both fixed:**
+
+1. **No controlled active state.** `LineSidebar` only exposes
+   `defaultActive` (read once, on mount) — there's no prop to tell it
+   "the active item changed" from outside. That's a real bug risk here:
+   the Organization page can jump straight to Agent Performance via its
+   "drill into agent" link, bypassing the sidebar entirely, and the old
+   button-list nav handled that fine since `tab === item.key` was checked
+   on every render. Fixed without touching the component's source: `<LineSidebar
+   key={tab} defaultActive={activeNavIndex} .../>` — React remounts the
+   whole component whenever `tab` changes for any reason, so
+   `defaultActive` gets re-read fresh every time and the highlighted item
+   always matches the page actually showing. Confirmed directly: clicked
+   "Organization" in the sidebar, screenshotted the highlight move to item
+   03, not just assumed it from the click handler firing.
+
+2. **Not keyboard-operable.** The published markup is a plain `<li
+   onClick>` — no `tabIndex`, no `role`, no key handler, so Tab+Enter did
+   nothing. This is primary app navigation, not a decorative list, so
+   `LineSidebar.js` (not the CSS) got a small, clearly-commented patch:
+   `tabIndex={0}`, `role="button"`, and an `onKeyDown` that treats
+   Enter/Space as a click. A matching `.line-sidebar__item:focus-visible`
+   ring was added in `App.css` (the component ships no focus style of its
+   own). Verified end-to-end, not just that the attributes exist:
+   `page.locator(...).focus()` then `page.keyboard.press('Enter')` on the
+   Leads item actually navigated there (`topbar-crumb` read "PIPELINE /
+   LEADS" afterward).
+
+**Real information preserved within the component's API.** The old nav
+showed a live call count badge next to "Calls" specifically; `items` only
+accepts `string[]`, no per-item badge slot, so the count is folded
+directly into the label (`Calls · 3`) rather than silently dropped.
+
+**Colors** are the Amber Ledger palette (`accentColor` amber, `textColor`/
+`markerColor` teal-grey resting states, matching `--text-secondary`/
+`--text-faint`), and `markerLength`/`fontSize`/`itemGap` were all turned
+down from the reference example's values (`markerLength` 65→20,
+`fontSize` 1.15→0.92) — the reference was sized for a wider panel;
+"Agent Performance" at the original sizing didn't fit this app's 232px
+sidebar column cleanly.
+
+Removed as dead code: `.side-nav button`/`.side-nav button:hover`/
+`.side-nav button.active`/`.side-nav-dot`/`.side-nav-label`/
+`.side-nav-badge` — the CSS for the button list this replaces. `.side-nav`
+(the wrapper) and `.side-nav-heading` ("NAVIGATION" label) stay, since
+they still wrap the new component.
+
+**Verification.** Live Playwright pass: idle state, hover-proximity shift
+on an inactive item, and post-click active-state relocation all
+screenshotted; keyboard focus ring and Enter-to-navigate confirmed
+end-to-end; 0 console errors. 163 backend tests still passing
+(frontend-only change).
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

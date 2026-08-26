@@ -671,6 +671,24 @@ message should make unasked.
 this exact error shape (413, `code: rate_limit_exceeded`, `type:
 tokens`). 168 backend tests passing overall.
 
+**Follow-up, same day: trimmed the fixed per-request token overhead.**
+The user hitting the sixth incident above was only 231 tokens over an
+8000 TPM cap — close enough that shaving a few hundred tokens off every
+request's fixed overhead could plausibly be the difference. `_JSON_SHAPE_REMINDER`
+(the belt-and-suspenders JSON-shape spec appended to every Groq prompt)
+was a pretty-printed, indented JSON example; minified to one line (same
+keys, same category list, same structure — just no whitespace token
+overhead), cutting it from 1735 to 1410 characters, roughly a 300-token
+saving estimated at ~4 chars/token. This is **not** a fix for an account
+that's well over its TPM budget — a model/tier change or a shorter
+transcript is still the real answer there — but it's free headroom for
+exactly the "just barely over" case, on every Groq call from now on, not
+just this one. Verified the minified string is still valid JSON with all
+7 top-level keys intact (a hand-compressed 1400-character JSON literal is
+exactly the kind of edit a stray missing comma hides in) before shipping
+it. 168 backend tests still passing (no test asserted the reminder's
+exact text, so none needed updating).
+
 ## Lead pipeline (2026-08-08) — Kanban board, ROADMAP.md C5
 
 **Why this before C2–C4/C6:** taken out of order at explicit request — it's

@@ -101,27 +101,33 @@ GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 # spells out the exact JSON shape expected in addition to the field-by-field
 # instructions in EXTRACTION_PROMPT -- this is belt-and-suspenders for an
 # open-weight model, not needed for Gemini's response_schema mode.
-_JSON_SHAPE_REMINDER = """
-Respond with a single JSON object only -- no prose before or after, no markdown \
-code fences -- with exactly this shape:
-{
-  "summary": "string",
-  "next_steps": [{"description": "string", "owner": "rep or customer", "due": "string or null", "source_segment_index": "int or null", "confidence": "float 0-1"}],
-  "objections": [{"category": "one of price/timing/competitor/need/trust/authority/product/implementation/contract/switching_cost", "quote": "string", "source_segment_index": "int or null", "confidence": "float 0-1", "addressed": "bool"}],
-  "sentiment": {"overall": "positive/neutral/negative", "beginning": "positive/neutral/negative", "middle": "positive/neutral/negative", "end": "positive/neutral/negative", "signals": ["string"], "confidence": "float 0-1"},
-  "buying_intent": {"level": "high/medium/low", "signals": ["string"], "follow_up_priority": "string", "confidence": "float 0-1"},
-  "coaching": {"top_strength": "string", "top_weakness": "string", "behavior_to_stop": "string", "behavior_to_continue": "string", "behavior_to_start": "string"},
-  "score_breakdown": {
-    "opening_rapport": {"score": "float 0-10", "max_score": 10, "evidence": "string"},
-    "discovery_qualification": {"score": "float 0-20", "max_score": 20, "evidence": "string"},
-    "active_listening": {"score": "float 0-10", "max_score": 10, "evidence": "string"},
-    "pitch_value_prop": {"score": "float 0-15", "max_score": 15, "evidence": "string"},
-    "objection_handling": {"score": "float 0-15", "max_score": 15, "evidence": "string"},
-    "communication_professionalism": {"score": "float 0-10", "max_score": 10, "evidence": "string"},
-    "closing_next_steps": {"score": "float 0-15", "max_score": 15, "evidence": "string"}
-  }
-}
-"""
+#
+# Minified (no pretty-print whitespace) rather than the original indented
+# form -- shaved ~300 chars / a rough 80 tokens off *every* Groq request's
+# fixed overhead after a real account hit its tokens-per-minute cap by only
+# 231 tokens (see README's "Sixth incident"). Not a fix for that class of
+# problem on its own (an account already well over its TPM budget needs a
+# different model/tier or fewer tokens elsewhere, e.g. a shorter
+# transcript), but free headroom for exactly the "just barely over" case.
+_JSON_SHAPE_REMINDER = (
+    "Respond with one JSON object only, no prose, no code fences, exactly this shape "
+    "(values shown are type hints, not literal): "
+    '{"summary":"str","next_steps":[{"description":"str","owner":"rep|customer","due":"str|null",'
+    '"source_segment_index":"int|null","confidence":0.0}],"objections":[{"category":'
+    '"price|timing|competitor|need|trust|authority|product|implementation|contract|switching_cost",'
+    '"quote":"str","source_segment_index":"int|null","confidence":0.0,"addressed":true}],'
+    '"sentiment":{"overall":"positive|neutral|negative","beginning":"positive|neutral|negative",'
+    '"middle":"positive|neutral|negative","end":"positive|neutral|negative","signals":["str"],'
+    '"confidence":0.0},"buying_intent":{"level":"high|medium|low","signals":["str"],'
+    '"follow_up_priority":"str","confidence":0.0},"coaching":{"top_strength":"str",'
+    '"top_weakness":"str","behavior_to_stop":"str","behavior_to_continue":"str",'
+    '"behavior_to_start":"str"},"score_breakdown":{"opening_rapport":{"score":0.0,"max_score":10,'
+    '"evidence":"str"},"discovery_qualification":{"score":0.0,"max_score":20,"evidence":"str"},'
+    '"active_listening":{"score":0.0,"max_score":10,"evidence":"str"},"pitch_value_prop":'
+    '{"score":0.0,"max_score":15,"evidence":"str"},"objection_handling":{"score":0.0,"max_score":15,'
+    '"evidence":"str"},"communication_professionalism":{"score":0.0,"max_score":10,"evidence":"str"},'
+    '"closing_next_steps":{"score":0.0,"max_score":15,"evidence":"str"}}}'
+)
 
 
 _FENCE_RE = re.compile(r"^```(?:json)?\s*\n?(.*?)\n?```$", re.DOTALL)

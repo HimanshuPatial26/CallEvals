@@ -25,6 +25,12 @@
   --ce-text-secondary: #a79f95;
   --ce-text-muted: #6f675e;
   --ce-text-faint: #6f6a63;
+  --ce-text-hint: #8c8378;
+  --ce-text-row: #c8c0b5;
+
+  --ce-accent-dim: #a0713c;
+  --ce-accent-dimmer: #6b5b49;
+  --ce-track: #3a342e;
 
   --ce-font-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --ce-font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -82,5 +88,36 @@ code {
 @keyframes ceSpin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes ceFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ceRule {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes ceSlide {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

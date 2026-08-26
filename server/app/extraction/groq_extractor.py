@@ -99,6 +99,16 @@ def _error_guidance(response: httpx.Response) -> str:
             "ones, don't handle strict JSON mode reliably). Try a well-established "
             "non-reasoning model for GROQ_MODEL, e.g. llama-3.3-70b-versatile."
         )
+    if code == "rate_limit_exceeded":
+        return (
+            " This is an account-level tokens-per-minute cap for this model on your Groq "
+            "tier, not something a retry or a smaller max_completion_tokens fully solves for "
+            "a genuinely long call — the transcript itself is most of the request size. Two "
+            "options: switch GROQ_MODEL to a smaller/faster model (these typically get a much "
+            "higher free-tier TPM allowance than a larger model — llama-3.1-8b-instant is "
+            "worth trying), or raise the limit on the tier this key is on at "
+            "https://console.groq.com/settings/billing."
+        )
     return ""
 
 
@@ -125,8 +135,11 @@ class GroqExtractor(ExtractionProvider):
                 "temperature": 0.2,
                 # Without an explicit cap, a long call (many next steps/objections)
                 # can get truncated mid-JSON, which is one way to land exactly on
-                # Groq's json_validate_failed error below.
-                "max_completion_tokens": 4096,
+                # Groq's json_validate_failed error below. Kept modest rather than
+                # generous — Groq's per-minute token limit counts this against the
+                # request's total (see _error_guidance's rate_limit_exceeded case),
+                # and F2-F4 output is inherently compact structured data, not prose.
+                "max_completion_tokens": 1536,
             },
             timeout=120.0,
         )

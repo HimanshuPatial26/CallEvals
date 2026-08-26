@@ -141,3 +141,31 @@ def test_extract_adds_guidance_for_json_validate_failed(groq_key, monkeypatch):
 
     with pytest.raises(RuntimeError, match="llama-3.3-70b-versatile"):
         GroqExtractor().extract(TRANSCRIPT)
+
+
+def test_extract_adds_guidance_for_rate_limit_exceeded(groq_key, monkeypatch):
+    """Reproduces the reported failure: a long call's transcript pushes a single
+    request's token count over the account's per-minute limit for that model.
+    This is an account/tier ceiling, not something a retry fixes — the error
+    should say that plainly instead of just relaying Groq's generic message."""
+    from app.extraction.groq_extractor import GroqExtractor
+
+    class FakeResponse:
+        is_error = True
+        status_code = 413
+        text = (
+            '{"error": {"message": "Request too large for model `qwen/qwen3.6-27b` in '
+            'organization `org_123` service tier `on_demand` on tokens per minute (TPM): '
+            'Limit 8000, Requested 11473, please reduce your message size and try again.", '
+            '"type": "tokens", "code": "rate_limit_exceeded"}}'
+        )
+
+        def json(self):
+            import json as _json
+
+            return _json.loads(self.text)
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: FakeResponse())
+
+    with pytest.raises(RuntimeError, match="tokens-per-minute cap"):
+        GroqExtractor().extract(TRANSCRIPT)

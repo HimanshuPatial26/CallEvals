@@ -4,6 +4,7 @@ import { listCalls } from "./api/client";
 import UploadPanel from "./components/UploadPanel";
 import CallList from "./components/CallList";
 import CallDetail from "./components/CallDetail";
+import { LogoMark } from "./icons";
 
 function App() {
   const [calls, setCalls] = useState([]);
@@ -42,11 +43,16 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>CallEvals</h1>
-        <p className="subtitle">Sales call review — Phase 0</p>
+        <div className="app-logo">
+          <LogoMark size={22} />
+          <div>
+            <h1>CallEvals</h1>
+            <p className="subtitle">Sales call review · Phase 0</p>
+          </div>
+        </div>
       </header>
 
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" style={{ margin: "16px 24px 0" }}>{error}</p>}
 
       <div className="app-body">
         <aside className="sidebar">
@@ -58,7 +64,11 @@ function App() {
           {selectedCall ? (
             <CallDetail call={selectedCall} onFeedbackChange={handleFeedbackChange} />
           ) : (
-            <p className="hint">Select a call to review it.</p>
+            <div className="call-processing">
+              <LogoMark size={22} animated />
+              <p className="hint" style={{ fontWeight: 600, color: "var(--ce-text)" }}>Select a call to review it.</p>
+              <p className="hint">Summary, next steps, objections, transcript.</p>
+            </div>
           )}
         </main>
       </div>

@@ -1,5 +1,7 @@
+import { StatusIcon } from "../icons";
+
 const STATUS_LABEL = {
-  processing: "Processing…",
+  processing: "Processing",
   done: "Ready",
   failed: "Failed",
 };
@@ -17,7 +19,12 @@ export default function CallList({ calls, selectedId, onSelect }) {
           className={`call-list-item ${call.id === selectedId ? "selected" : ""}`}
           onClick={() => onSelect(call.id)}
         >
-          <span className="call-filename">{call.filename}</span>
+          <span className="call-status-icon">
+            <StatusIcon status={call.status} />
+          </span>
+          <span className="call-list-item-body">
+            <span className="call-filename">{call.filename}</span>
+          </span>
           <span className={`status-badge status-${call.status}`}>{STATUS_LABEL[call.status] || call.status}</span>
         </li>
       ))}

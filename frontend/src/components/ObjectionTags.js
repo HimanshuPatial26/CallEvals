@@ -1,4 +1,6 @@
 import { submitFeedback } from "../api/client";
+import { IconObjection } from "../icons";
+import ConfidenceBar from "./ConfidenceBar";
 
 export default function ObjectionTags({ callId, objections, feedback, onJumpToTimestamp, onFeedbackChange }) {
   function feedbackFor(index) {
@@ -20,10 +22,16 @@ export default function ObjectionTags({ callId, objections, feedback, onJumpToTi
         const existing = feedbackFor(i);
         return (
           <li key={i} className="extracted-item">
-            <button className={`jump-link objection-tag tag-${objection.category}`} onClick={() => onJumpToTimestamp(objection.source_timestamp)}>
-              {objection.category}
+            <button className="jump-link" onClick={() => onJumpToTimestamp(objection.source_timestamp)}>
+              <span className="objection-tag">
+                <IconObjection size={13} />
+                {objection.category}
+              </span>
             </button>
-            <span className="item-meta">"{objection.quote}" · confidence {(objection.confidence * 100).toFixed(0)}%</span>
+            <span className="item-meta">
+              <span className="quote">&ldquo;{objection.quote}&rdquo;</span>
+              <ConfidenceBar value={objection.confidence} />
+            </span>
             <div className="feedback-buttons">
               <button
                 className={existing?.confirmed === true ? "active confirm" : "confirm"}

@@ -1,13 +1,86 @@
+:root {
+  /* Ember palette — see design system 02 · Color */
+  --ce-canvas: #08090b;
+  --ce-surface: #0c0b0a;
+  --ce-surface-2: #100e0c;
+  --ce-hover-fill: #1c1713;
+  --ce-border: #26221e;
+  --ce-divider: #1e1a17;
+  --ce-border-input: #2e2925;
+  --ce-border-control: #33302b;
+
+  --ce-accent: #f0913c;
+  --ce-accent-hover: #ffb169;
+  --ce-accent-weak: rgba(240, 145, 60, 0.12);
+  --ce-accent-ring: rgba(240, 145, 60, 0.14);
+  --ce-accent-glow: rgba(240, 145, 60, 0.22);
+
+  --ce-success: #4fbf8b;
+  --ce-success-weak: rgba(79, 191, 139, 0.12);
+  --ce-danger: #e0605e;
+  --ce-danger-weak: rgba(224, 96, 94, 0.12);
+  --ce-danger-border: rgba(224, 96, 94, 0.4);
+
+  --ce-text: #f4efe8;
+  --ce-text-secondary: #a79f95;
+  --ce-text-muted: #6f675e;
+  --ce-text-faint: #6f6a63;
+
+  --ce-font-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --ce-font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  --ce-radius-chip: 5px;
+  --ce-radius-control: 7px;
+  --ce-radius-card: 10px;
+  --ce-radius-panel: 14px;
+  --ce-radius-pill: 999px;
+
+  --ce-shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --ce-shadow-accent: 0 10px 30px var(--ce-accent-glow);
+
+  --ce-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ce-dur-hover: 120ms;
+  --ce-dur-entry: 200ms;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  background: var(--ce-canvas);
+  color: var(--ce-text);
+  font-family: var(--ce-font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+a {
+  color: var(--ce-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--ce-accent-hover);
+}
+
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: var(--ce-font-mono);
+}
+
+@keyframes ceBar {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes ceSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }

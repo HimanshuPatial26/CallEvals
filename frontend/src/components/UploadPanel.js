@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { uploadCall } from "../api/client";
+import { IconUpload } from "../icons";
 
 export default function UploadPanel({ onUploaded }) {
   const [busy, setBusy] = useState(false);
@@ -24,9 +25,10 @@ export default function UploadPanel({ onUploaded }) {
 
   return (
     <div className="panel upload-panel">
-      <label className="upload-label">
+      <label className={`upload-label${busy ? " busy" : ""}`}>
         <input ref={inputRef} type="file" accept="audio/*" onChange={handleChange} disabled={busy} />
-        {busy ? "Uploading…" : "Upload a call recording"}
+        <IconUpload size={14} />
+        {busy ? "Uploading…" : "Upload a call"}
       </label>
       {error && <p className="error">{error}</p>}
       <p className="hint">Dual-channel (stereo) files get real speaker separation. Mono files are labeled "unknown" — diarization is a Phase 1 add.</p>

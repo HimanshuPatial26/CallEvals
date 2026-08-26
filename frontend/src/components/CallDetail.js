@@ -2,16 +2,27 @@ import { useState } from "react";
 import TranscriptView from "./TranscriptView";
 import NextStepsPanel from "./NextStepsPanel";
 import ObjectionTags from "./ObjectionTags";
+import { LogoMark, IconFailed } from "../icons";
 
 export default function CallDetail({ call, onFeedbackChange }) {
   const [highlightTimestamp, setHighlightTimestamp] = useState(null);
 
   if (call.status === "processing") {
-    return <p className="hint">Transcribing and extracting… this can take a minute for longer calls.</p>;
+    return (
+      <div className="call-processing">
+        <LogoMark size={22} animated />
+        <p className="hint">Transcribing and extracting… this can take a minute for longer calls.</p>
+      </div>
+    );
   }
 
   if (call.status === "failed") {
-    return <p className="error">Processing failed: {call.error}</p>;
+    return (
+      <div className="call-failed">
+        <IconFailed size={22} />
+        <p className="error">Processing failed: {call.error}</p>
+      </div>
+    );
   }
 
   return (

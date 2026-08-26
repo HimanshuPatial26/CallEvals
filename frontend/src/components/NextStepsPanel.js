@@ -1,4 +1,5 @@
 import { submitFeedback } from "../api/client";
+import ConfidenceBar from "./ConfidenceBar";
 
 export default function NextStepsPanel({ callId, nextSteps, feedback, onJumpToTimestamp, onFeedbackChange }) {
   function feedbackFor(index) {
@@ -24,8 +25,11 @@ export default function NextStepsPanel({ callId, nextSteps, feedback, onJumpToTi
               {step.description}
             </button>
             <span className="item-meta">
-              {step.owner}
-              {step.due ? ` · due ${step.due}` : ""} · confidence {(step.confidence * 100).toFixed(0)}%
+              <span>
+                {step.owner}
+                {step.due ? ` · due ${step.due}` : ""}
+              </span>
+              <ConfidenceBar value={step.confidence} />
             </span>
             <div className="feedback-buttons">
               <button

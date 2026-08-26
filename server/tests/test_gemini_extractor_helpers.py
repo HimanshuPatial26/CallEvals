@@ -1,7 +1,7 @@
 from google import genai
 from google.genai import _transformers
 
-from app.extraction.gemini_extractor import _WireExtractionResult, _format_transcript, _resolve_timestamp
+from app.extraction.wire import WireExtractionResult, format_transcript, resolve_timestamp
 from app.schemas import Speaker, TranscriptSegment
 
 TRANSCRIPT = [
@@ -11,19 +11,19 @@ TRANSCRIPT = [
 
 
 def test_format_transcript_includes_index_and_speaker():
-    formatted = _format_transcript(TRANSCRIPT)
+    formatted = format_transcript(TRANSCRIPT)
     assert "[0] rep" in formatted
     assert "[1] customer" in formatted
     assert "too expensive" in formatted
 
 
 def test_resolve_timestamp_looks_up_segment_start():
-    assert _resolve_timestamp(1, TRANSCRIPT) == 2.5
+    assert resolve_timestamp(1, TRANSCRIPT) == 2.5
 
 
 def test_resolve_timestamp_returns_none_for_missing_index():
-    assert _resolve_timestamp(None, TRANSCRIPT) is None
-    assert _resolve_timestamp(99, TRANSCRIPT) is None
+    assert resolve_timestamp(None, TRANSCRIPT) is None
+    assert resolve_timestamp(99, TRANSCRIPT) is None
 
 
 def test_wire_schema_is_gemini_compatible():
@@ -35,5 +35,5 @@ def test_wire_schema_is_gemini_compatible():
     which is what actually broke.
     """
     client = genai.Client(api_key="dummy-key-no-network-call")
-    schema = _transformers.t_schema(client._api_client, _WireExtractionResult)
+    schema = _transformers.t_schema(client._api_client, WireExtractionResult)
     assert schema is not None

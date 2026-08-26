@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from app import storage
 from app.asr.factory import get_asr_provider
 from app.audio.channel_split import is_dual_channel
-from app.extraction.gemini_extractor import GeminiExtractor
+from app.extraction.factory import get_extraction_provider
 from app.pipeline import process_call
 from app.schemas import Agent, CallRecord, Lead, ReviewFeedback
 
@@ -21,7 +21,7 @@ def _run_pipeline(call_id: str) -> None:
     audio_path = storage.audio_path_for(record.id, record.filename)
     try:
         asr = get_asr_provider()
-        extractor = GeminiExtractor()
+        extractor = get_extraction_provider()
     except RuntimeError as exc:
         record.status = "failed"
         record.error = str(exc)

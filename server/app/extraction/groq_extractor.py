@@ -105,7 +105,11 @@ class GroqExtractor(ExtractionProvider):
             },
             timeout=120.0,
         )
-        response.raise_for_status()
+        if response.is_error:
+            # httpx's default raise_for_status() message drops the response body,
+            # which is where Groq (OpenAI-compatible) actually puts the reason —
+            # e.g. an invalid/retired GROQ_MODEL, or a request field it rejects.
+            raise RuntimeError(f"Groq extraction request failed ({response.status_code}): {response.text}")
         content = response.json()["choices"][0]["message"]["content"]
         wire = WireExtractionResult.model_validate_json(content)
 

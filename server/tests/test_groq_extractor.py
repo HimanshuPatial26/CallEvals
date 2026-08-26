@@ -145,3 +145,81 @@ def test_http_error_status_propagates(groq_key, monkeypatch):
 
     with pytest.raises(RuntimeError, match="model_decommissioned"):
         GroqExtractor().extract(TRANSCRIPT)
+
+
+def test_json_mode_unsupported_retries_without_response_format(groq_key, monkeypatch):
+    """Production incident: some Groq-hosted models 400 outright on
+    response_format instead of ignoring it ("This model does not support
+    JSON output"). The call should retry once without response_format and
+    still succeed, rather than failing the whole extraction over a request
+    option the model doesn't have."""
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append(kwargs["json"])
+        request = httpx.Request("POST", url)
+        if len(calls) == 1:
+            return httpx.Response(
+                400,
+                request=request,
+                json={
+                    "error": {
+                        "message": "This model does not support JSON output",
+                        "type": "invalid_request_error",
+                        "param": "response_format",
+                    }
+                },
+            )
+        return httpx.Response(
+            200, request=request, json={"choices": [{"message": {"content": json.dumps(_VALID_WIRE_PAYLOAD)}}]}
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    from app.extraction.groq_extractor import GroqExtractor
+
+    result = GroqExtractor().extract(TRANSCRIPT)
+
+    assert result.summary == "Customer interested but price-sensitive."
+    assert len(calls) == 2
+    assert calls[0]["response_format"] == {"type": "json_object"}
+    assert "response_format" not in calls[1]
+
+
+def test_other_400_error_does_not_retry(groq_key, monkeypatch):
+    """A 400 for a different reason (not response_format) should not
+    trigger the retry-without-json-mode path -- it should raise like any
+    other error, with only one request made."""
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append(kwargs["json"])
+        request = httpx.Request("POST", url)
+        return httpx.Response(
+            400,
+            request=request,
+            json={"error": {"message": "invalid request", "type": "invalid_request_error", "param": "messages"}},
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    from app.extraction.groq_extractor import GroqExtractor
+
+    with pytest.raises(RuntimeError, match="invalid request"):
+        GroqExtractor().extract(TRANSCRIPT)
+
+    assert len(calls) == 1
+
+
+def test_markdown_fenced_json_response_is_parsed(groq_key, monkeypatch):
+    """Without JSON mode a model is more likely to wrap its answer in a
+    ```json fence despite the prompt saying not to -- it should still be
+    parsed, not failed as invalid JSON."""
+    from app.extraction.groq_extractor import GroqExtractor
+
+    fenced = f"```json\n{json.dumps(_VALID_WIRE_PAYLOAD)}\n```"
+    _mock_response(monkeypatch, fenced)
+
+    result = GroqExtractor().extract(TRANSCRIPT)
+
+    assert result.summary == "Customer interested but price-sensitive."

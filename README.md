@@ -602,6 +602,36 @@ real function, not a hypothetical, and pointed straight at the bug. Fixed
 by tracking "changed" (drop OR normalize) instead of "dropped" alone.
 163 backend tests passing overall.
 
+**Fourth incident (2026-08-09): the configured model didn't support JSON
+mode at all.** A real upload hit `Groq API error 400 ... "message": "This
+model does not support JSON output", "param": "response_format"`. Every
+request to Groq unconditionally sent
+`response_format: {"type": "json_object"}`; some Groq-hosted models
+(reasoning/preview models in particular) reject that option outright with
+a 400 instead of silently ignoring it, so the whole call failed before
+the model ever saw the transcript.
+
+**Fix:** `GroqExtractor.extract()` now sends the first request with
+`response_format` as before, but on a 400 whose body's `error.param` is
+specifically `"response_format"`, retries once *without* it — the prompt
+already spells out the exact JSON shape as a fallback for models with no
+schema-constrained decoding (`_JSON_SHAPE_REMINDER`, added when this
+provider was first built), so dropping JSON mode doesn't mean dropping
+the shape instructions too. A model running without JSON mode is also
+slightly more likely to wrap its answer in a ` ```json ` fence despite
+being told not to; `_parse_json_object()` strips that before
+`json.loads()` rather than failing the call on what's really a
+formatting quirk, not invalid output.
+
+**Verification.** 3 new tests in `test_groq_extractor.py`: the
+response_format-rejected case retries once and succeeds, confirming
+exactly 2 requests were made and the second omits `response_format`
+entirely; a 400 for an unrelated reason (wrong `param`) is confirmed to
+*not* retry — one request, error raised, so the fix doesn't silently
+swallow other 400s; and a response wrapped in a `` ```json `` fence
+parses correctly. 166 backend tests passing overall (frontend
+unaffected).
+
 ## Lead pipeline (2026-08-08) — Kanban board, ROADMAP.md C5
 
 **Why this before C2–C4/C6:** taken out of order at explicit request — it's

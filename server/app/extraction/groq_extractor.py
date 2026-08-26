@@ -40,9 +40,23 @@ it can't independently verify Groq model ids. GROQ_MODEL now defaults to
 openai/gpt-oss-120b, confirmed live as of 2026-08-08, but Groq rotates
 model ids over time regardless; check
 https://console.groq.com/docs/models if this one goes stale too.
+
+Third production incident: not every Groq-hosted model supports
+`response_format: {"type": "json_object"}` at all -- some (reasoning /
+preview models in particular) 400 outright with `"param":
+"response_format"` when it's included, rather than just ignoring it.
+Failing the whole call over a request option the model doesn't support,
+when the prompt already spells out the exact JSON shape as a fallback
+(see _JSON_SHAPE_REMINDER), was pure lost value -- so on that specific
+400, the request is retried once without response_format instead of
+raising. Without JSON mode a model is slightly more likely to wrap its
+answer in a ```json fence despite being told not to, so the response is
+unwrapped before parsing; Pydantic validation against WireExtractionResult
+is still what actually enforces the shape either way.
 """
 
 import json
+import re
 
 import httpx
 
@@ -86,6 +100,30 @@ code fences -- with exactly this shape:
 """
 
 
+_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?(.*?)\n?```$", re.DOTALL)
+
+
+def _parse_json_object(content: str) -> dict:
+    """Models without native JSON mode occasionally wrap the answer in a
+    ```json fence despite being told not to (see _JSON_SHAPE_REMINDER) --
+    unwrap it before parsing rather than failing the call over formatting."""
+    text = content.strip()
+    match = _FENCE_RE.match(text)
+    if match:
+        text = match.group(1).strip()
+    return json.loads(text)
+
+
+def _is_json_mode_unsupported(response: httpx.Response) -> bool:
+    if response.status_code != 400:
+        return False
+    try:
+        error = response.json().get("error", {})
+    except ValueError:
+        return False
+    return error.get("param") == "response_format"
+
+
 class GroqExtractor(ExtractionProvider):
     def __init__(self) -> None:
         if not settings.groq_api_key:
@@ -96,17 +134,17 @@ class GroqExtractor(ExtractionProvider):
 
     def extract(self, transcript: list[TranscriptSegment]) -> ExtractionResult:
         prompt = EXTRACTION_PROMPT.format(transcript=format_transcript(transcript)) + _JSON_SHAPE_REMINDER
-        response = httpx.post(
-            GROQ_CHAT_COMPLETIONS_URL,
-            headers={"Authorization": f"Bearer {settings.groq_api_key}"},
-            json={
-                "model": settings.groq_model,
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.2,
-            },
-            timeout=60.0,
-        )
+        payload = {
+            "model": settings.groq_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+        }
+        response = self._post({**payload, "response_format": {"type": "json_object"}})
+        if response.is_error and _is_json_mode_unsupported(response):
+            # Some Groq-hosted models 400 outright on response_format
+            # instead of ignoring it -- retry once without it rather than
+            # losing the call over a mode the model just doesn't have.
+            response = self._post(payload)
         if response.is_error:
             # response.raise_for_status() alone drops the response body --
             # exactly the part that says *why* (e.g. Groq returns 404 with a
@@ -114,5 +152,13 @@ class GroqExtractor(ExtractionProvider):
             # reads identically to a wrong-URL 404 without this).
             raise RuntimeError(f"Groq API error {response.status_code} calling {GROQ_CHAT_COMPLETIONS_URL}: {response.text}")
         content = response.json()["choices"][0]["message"]["content"]
-        wire = WireExtractionResult.model_validate(sanitize_wire_payload(json.loads(content)))
+        wire = WireExtractionResult.model_validate(sanitize_wire_payload(_parse_json_object(content)))
         return wire_to_extraction_result(wire, transcript)
+
+    def _post(self, payload: dict) -> httpx.Response:
+        return httpx.post(
+            GROQ_CHAT_COMPLETIONS_URL,
+            headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+            json=payload,
+            timeout=60.0,
+        )

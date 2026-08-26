@@ -54,7 +54,9 @@ def test_dual_channel_maps_channels_to_speakers(deepgram_key, monkeypatch, tmp_p
     assert segments[1].text == "too expensive"
 
 
-def test_mono_labels_everything_unknown(deepgram_key, monkeypatch, tmp_path):
+def test_mono_without_diarization_info_labels_unknown(deepgram_key, monkeypatch, tmp_path):
+    """No 'speaker' field on the utterance (Deepgram couldn't diarize this
+    audio) still degrades to unknown rather than guessing a role."""
     from app.asr.deepgram_provider import DeepgramProvider
 
     _mock_response(monkeypatch, [{"start": 0.0, "end": 1.0, "channel": 0, "transcript": "hello"}])
@@ -65,6 +67,55 @@ def test_mono_labels_everything_unknown(deepgram_key, monkeypatch, tmp_path):
     segments = DeepgramProvider().transcribe(audio_path, dual_channel=False)
 
     assert segments[0].speaker == Speaker.UNKNOWN
+
+
+def test_mono_uses_diarization_to_identify_rep_and_customer(deepgram_key, monkeypatch, tmp_path):
+    from app.asr.deepgram_provider import DeepgramProvider
+
+    _mock_response(
+        monkeypatch,
+        [
+            {"start": 0.0, "end": 1.0, "transcript": "hi there, thanks for calling", "speaker": 0},
+            {"start": 1.5, "end": 2.5, "transcript": "hi, I have a question", "speaker": 1},
+            {"start": 3.0, "end": 4.0, "transcript": "sure, go ahead", "speaker": 0},
+        ],
+    )
+
+    audio_path = tmp_path / "call.wav"
+    audio_path.write_bytes(b"fake-audio")
+
+    segments = DeepgramProvider().transcribe(audio_path, dual_channel=False)
+
+    assert segments[0].speaker == Speaker.REP  # speaker 0 talked first
+    assert segments[1].speaker == Speaker.CUSTOMER
+    assert segments[2].speaker == Speaker.REP
+
+
+def test_mono_request_asks_for_diarization_not_multichannel(deepgram_key, monkeypatch, tmp_path):
+    from app.asr.deepgram_provider import DeepgramProvider
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"results": {"utterances": []}}
+
+    def fake_post(url, *, params=None, headers=None, content=None, timeout=None):
+        captured["params"] = params
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    audio_path = tmp_path / "call.wav"
+    audio_path.write_bytes(b"fake-audio")
+
+    DeepgramProvider().transcribe(audio_path, dual_channel=False)
+
+    assert captured["params"]["diarize"] == "true"
+    assert "multichannel" not in captured["params"]
 
 
 def test_empty_transcript_utterances_are_skipped(deepgram_key, monkeypatch, tmp_path):

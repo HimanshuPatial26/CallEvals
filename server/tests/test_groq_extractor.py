@@ -19,8 +19,7 @@ def groq_key(monkeypatch):
 
 def _mock_chat_completion(monkeypatch, wire_payload):
     class FakeResponse:
-        def raise_for_status(self):
-            pass
+        is_error = False
 
         def json(self):
             return {"choices": [{"message": {"content": json.dumps(wire_payload)}}]}
@@ -87,8 +86,7 @@ def test_extract_raises_on_malformed_json_response(groq_key, monkeypatch):
     from app.extraction.groq_extractor import GroqExtractor
 
     class FakeResponse:
-        def raise_for_status(self):
-            pass
+        is_error = False
 
         def json(self):
             return {"choices": [{"message": {"content": "not valid json"}}]}
@@ -96,4 +94,22 @@ def test_extract_raises_on_malformed_json_response(groq_key, monkeypatch):
     monkeypatch.setattr(httpx, "post", lambda *a, **k: FakeResponse())
 
     with pytest.raises(Exception):  # noqa: B017 — any parse/validation failure is the point
+        GroqExtractor().extract(TRANSCRIPT)
+
+
+def test_extract_surfaces_the_actual_error_body_on_a_4xx(groq_key, monkeypatch):
+    """Regression test: httpx's raise_for_status() message drops the response
+    body, which is where Groq (OpenAI-compatible) puts the actual reason for a
+    400 — e.g. an invalid/retired model. GroqExtractor should surface that text,
+    not just the generic '400 Bad Request'."""
+    from app.extraction.groq_extractor import GroqExtractor
+
+    class FakeResponse:
+        is_error = True
+        status_code = 400
+        text = '{"error": {"message": "The model `bogus-model` does not exist", "type": "invalid_request_error"}}'
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: FakeResponse())
+
+    with pytest.raises(RuntimeError, match="does not exist"):
         GroqExtractor().extract(TRANSCRIPT)

@@ -20,7 +20,7 @@ function fmtDateTime(iso) {
 // and a read-only call history list. Reached via each LeadCard's "view
 // details" button rather than clicking the card itself, since the card is
 // also a drag handle and click-after-drag is unreliable across browsers.
-export default function LeadDetailModal({ leadId, agents, onClose }) {
+export default function LeadDetailModal({ leadId, agents, onClose, onOpenCall }) {
   const [lead, setLead] = useState(null);
   const [error, setError] = useState(null);
   const [reassignTo, setReassignTo] = useState("");
@@ -144,7 +144,19 @@ export default function LeadDetailModal({ leadId, agents, onClose }) {
                 </thead>
                 <tbody>
                   {lead.calls.map((c) => (
-                    <tr key={c.id}>
+                    <tr
+                      key={c.id}
+                      className="trend-table-row-clickable"
+                      tabIndex={0}
+                      role="button"
+                      onClick={() => onOpenCall(c.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onOpenCall(c.id);
+                        }
+                      }}
+                    >
                       <td>{fmtDateTime(c.created_at)}</td>
                       <td>{agentNameById[c.agent_id] || c.agent_id}</td>
                       <td>{c.overall_score != null ? Math.round(c.overall_score) : "—"}</td>

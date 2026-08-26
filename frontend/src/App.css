@@ -1488,6 +1488,10 @@ button:not(:disabled):active {
   cursor: pointer;
 }
 
+.trend-table-row-clickable {
+  cursor: pointer;
+}
+
 .link-button {
   background: none;
   border: none;

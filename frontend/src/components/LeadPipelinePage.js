@@ -28,7 +28,7 @@ const LOST_REASONS = [
   ["other", "Other"],
 ];
 
-export default function LeadPipelinePage() {
+export default function LeadPipelinePage({ onOpenCall }) {
   const [leads, setLeads] = useState([]);
   const [agents, setAgents] = useState([]);
   const [agentFilter, setAgentFilter] = useState("");
@@ -258,6 +258,10 @@ export default function LeadPipelinePage() {
           onClose={() => {
             setDetailLeadId(null);
             loadLeads(); // a reassignment in the modal can change what the board shows under the current agent filter
+          }}
+          onOpenCall={(callId) => {
+            setDetailLeadId(null);
+            onOpenCall(callId);
           }}
         />
       )}

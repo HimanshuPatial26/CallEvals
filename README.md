@@ -1306,6 +1306,39 @@ screenshotted; keyboard focus ring and Enter-to-navigate confirmed
 end-to-end; 0 console errors. 163 backend tests still passing
 (frontend-only change).
 
+### Call history rows in the lead detail modal now open that call (2026-08-26)
+
+`LeadDetailModal`'s "Call history" table (per-lead call list — date, agent,
+score, status) was read-only: `LeadCallSummary` (see `routers/leads.py`)
+carries the real call id per row, but nothing used it. Clicking a row now
+navigates to that exact call's full analysis on the Calls tab, closing the
+lead modal on the way — the same "click something in page A, land on a
+specific record in page B" pattern already used for Organization → Agent
+Performance drill-down (`goToAgent`/`onDrillToAgent`).
+
+Threaded a new `goToCall(callId)` in `App.js` (`setSelectedId(callId);
+setTab("calls")`) down through `LeadPipelinePage`'s new `onOpenCall` prop
+into `LeadDetailModal`'s new `onOpenCall` prop, which now also closes the
+modal itself before navigating (`setDetailLeadId(null)` in
+`LeadPipelinePage`) — leaving the modal's "open" state hanging while the
+Leads tab isn't even showing would be a stale-UI bug. Each `<tr>` in the
+call-history table got `onClick`, plus `tabIndex`/`role="button"`/`onKeyDown`
+(Enter/Space) for the same reason the LineSidebar items got that patch
+above — this is a real navigation control, not decoration. New
+`.trend-table-row-clickable` CSS class (just `cursor: pointer`, mirroring
+the existing `.leaderboard-row-clickable`).
+
+**Verification.** Seeded a lead and a `done` call with a full extraction
+result directly through `lead_storage`/`storage` (no upload pipeline
+needed), then drove it end-to-end with Playwright against the live dev
+servers: opened the Leads tab, opened the seeded lead's detail modal,
+clicked its one call-history row, and confirmed the Calls tab became
+active, the lead modal was gone, and CallDetail was showing that exact
+call (`verify-call.wav`, summary "Customer interested but
+price-sensitive.", score 82/100) — not just some call. `eslint` clean on
+the three changed files; seed data removed afterward (`server/data/` is
+gitignored, so nothing to clean up in git regardless).
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

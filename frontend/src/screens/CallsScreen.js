@@ -129,6 +129,16 @@ export default function CallsScreen({
     ...nextSteps.filter((s) => s.source_timestamp != null).map((s) => ({ ts: s.source_timestamp, color: "var(--ce-success)" })),
   ];
   const autoflagThreshold = settings?.autoflag_threshold ?? 88;
+  // Derived from the actual segments rather than the dual_channel flag alone —
+  // a mono call can still have real rep/customer labels via Deepgram
+  // diarization, and that's a heuristic guess, not the same certainty as
+  // hard channel separation, so it's worth saying which one this call got.
+  const hasIdentifiedSpeakers = call.transcript.some((s) => s.speaker !== "unknown");
+  const speakerLabel = !hasIdentifiedSpeakers
+    ? "SPEAKERS UNKNOWN"
+    : call.dual_channel
+      ? "SPEAKER-SEPARATED"
+      : "DIARIZED · HEURISTIC";
 
   return (
     <div className="ce-content">
@@ -193,9 +203,7 @@ export default function CallsScreen({
               <div className="ce-card ce-tab-panel">
                 <div className="ce-card-header">
                   <span className="ce-card-title">Transcript</span>
-                  <span className="ce-card-tag">
-                    {call.dual_channel ? "SPEAKER-SEPARATED" : "MONO · SPEAKERS UNKNOWN"}
-                  </span>
+                  <span className="ce-card-tag">{speakerLabel}</span>
                   <span className="hint" style={{ marginLeft: "auto" }}>Click any line to jump the audio</span>
                 </div>
                 <TranscriptView

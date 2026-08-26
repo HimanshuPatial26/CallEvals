@@ -1350,6 +1350,53 @@ accessible path still works. `eslint` clean on all changed files; seed
 data removed afterward (`server/data/` is gitignored, so nothing to clean
 up in git regardless).
 
+### System-wide font swap: Space Grotesk → Atkinson Hyperlegible Sans (2026-08-26)
+
+Replaced `--font-sans` (the body/UI typeface used almost everywhere except
+the mono-styled labels/badges/numbers) with **Atkinson Hyperlegible Sans**,
+from the family's own `hyperlegible-sans-master` release zip the user
+supplied — a font specifically designed for legibility (distinct
+letterforms for commonly-confused characters), not a decorative choice.
+`--font-mono` (JetBrains Mono, used deliberately for the data/label
+typographic contrast baked into the "Amber Ledger" theme) is untouched —
+the supplied family only ships a sans face, and nothing asked for the mono
+contrast itself to go away.
+
+**Self-hosted, not a Google Fonts `@import`** — same reasoning as the
+existing Space Grotesk/JetBrains Mono setup: an `@import` against
+fonts.googleapis.com previously hung page load with `ERR_CONNECTION_RESET`
+on this network (see "Animated score hero" above). The six `.woff2` files
+from the zip's `fonts/webfonts/` (Regular/Medium/Bold + their italics) and
+the family's `OFL.txt` license were copied verbatim into
+`frontend/src/assets/fonts/hyperlegible-sans/`, with a new
+`hyperlegible-sans.css` declaring six `@font-face` rules (400/500/700,
+normal/italic) — the same self-hosted-via-webpack-bundling pattern the
+`@fontsource` packages use, just hand-written since this family isn't on
+npm. Imported from `index.js` in place of the four `@fontsource/space-
+grotesk` weight imports; `@fontsource/space-grotesk` itself removed from
+`package.json` (`npm uninstall`) since nothing references it anymore.
+
+**Known gap, not fixed:** the shipped family has no 600 (semibold) weight,
+but ~20 rules in `App.css` request `font-weight: 600` (headings, labels).
+Per the CSS font-matching algorithm this doesn't error or fall back to
+Google's/system default — the browser resolves it to the nearest
+*registered* weight for "Hyperlegible Sans", which is 700 (Bold), so
+those elements render slightly heavier than the old Space Grotesk 600 did.
+Left as-is rather than editing 20 call sites to request 700 explicitly
+(the rendered result is identical either way) or fabricating a synthetic
+600 weight that doesn't exist in the vendor's release.
+
+**Verification.** Live Playwright pass against the running dev server:
+`document.fonts` confirmed the 400/500/700 (normal) faces actually loaded
+(0 failed `.woff2` requests), `getComputedStyle(document.body).fontFamily`
+resolved to `"Hyperlegible Sans", system-ui, -apple-system, sans-serif`,
+and the same on a `.brand-name` heading element specifically (weight 600
+context). Screenshotted the Calls, Leads, and Organization pages to
+confirm the new face renders correctly across headings, body copy, and
+form controls, with `--font-mono` labels (nav index numbers, "PIPELINE
+STATUS", topbar breadcrumbs) visibly unchanged. `eslint` clean on
+`index.js`.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

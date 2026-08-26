@@ -1,17 +1,28 @@
-"""Extraction via the Gemini Developer API free tier (ai.google.dev) — no GCP billing
-account required, unlike Cloud STT/Vertex. Structured JSON output constrains the
-model to the F2/F3/F4 shape instead of parsing free text.
+"""Extraction via Groq's OpenAI-compatible chat completions API. Opt-in
+(EXTRACTION_PROVIDER=groq in .env) — Gemini stays the default extraction path.
+
+Uses a plain httpx call rather than the `groq` SDK, matching how
+app/asr/deepgram_provider.py talks to Deepgram directly: one more REST call, not
+one more SDK dependency, for an API this small.
+
+Unlike Gemini's response_schema (a real structured-output constraint enforced by
+the API), Groq's response_format={"type": "json_object"} only guarantees the reply
+parses as JSON, not that it matches a specific shape — so the target shape has to
+be spelled out in the prompt, and the result is worth validating strictly against
+WireExtractionResult before anything downstream trusts it. A model that returns
+well-formed but wrong-shaped JSON fails loudly as a pydantic ValidationError,
+surfaced to the review UI via app/pipeline.py's broad exception handling, same as
+any other extraction failure.
 """
 
-import json
-
-from google import genai
-from google.genai import types
+import httpx
 
 from app.config import settings
 from app.extraction.base import ExtractionProvider
 from app.extraction.wire import WireExtractionResult, format_transcript, resolve_timestamp
 from app.schemas import ExtractionResult, NextStep, Objection, TranscriptSegment
+
+_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 EXTRACTION_PROMPT = """You are analyzing a sales call transcript for a real-estate \
 brokerage sales manager. Extract exactly three things:
@@ -40,34 +51,63 @@ For every next step and objection, set source_segment_index to the index of the 
 transcript segment (shown in brackets below) it came from. Use null if you can't \
 tie it to one segment.
 
+Respond with a single JSON object and nothing else — no markdown fences, no \
+commentary — matching exactly this shape:
+{{
+  "summary": "<string, under 150 words>",
+  "next_steps": [
+    {{
+      "description": "<string>",
+      "owner": "<rep | customer | unknown>",
+      "due": "<string or null>",
+      "source_segment_index": <integer or null>,
+      "confidence": <number between 0 and 1>
+    }}
+  ],
+  "objections": [
+    {{
+      "category": "<price | timing | competitor>",
+      "quote": "<string, the customer's own words>",
+      "source_segment_index": <integer or null>,
+      "confidence": <number between 0 and 1>
+    }}
+  ]
+}}
+Omit nothing from the shape above, and use empty lists rather than omitting keys \
+when there are no next steps or objections.
+
 Transcript:
 {transcript}
 """
 
 
-class GeminiExtractor(ExtractionProvider):
+class GroqExtractor(ExtractionProvider):
     def __init__(self) -> None:
-        if not settings.gemini_api_key:
+        if not settings.groq_api_key:
             raise RuntimeError(
-                "GEMINI_API_KEY is not set. Get a free key at https://ai.google.dev "
-                "and put it in server/.env (see .env.example)."
+                "EXTRACTION_PROVIDER=groq but GROQ_API_KEY is not set. Get a free-credit "
+                "key at https://console.groq.com and put it in server/.env (see .env.example)."
             )
-        self._client = genai.Client(api_key=settings.gemini_api_key)
 
     def extract(self, transcript: list[TranscriptSegment]) -> ExtractionResult:
         prompt = EXTRACTION_PROMPT.format(transcript=format_transcript(transcript))
-        response = self._client.models.generate_content(
-            model=settings.gemini_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=WireExtractionResult,
-            ),
+        response = httpx.post(
+            _API_URL,
+            headers={
+                "Authorization": f"Bearer {settings.groq_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.groq_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.2,
+            },
+            timeout=120.0,
         )
-
-        wire = response.parsed
-        if wire is None:
-            wire = WireExtractionResult.model_validate(json.loads(response.text))
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        wire = WireExtractionResult.model_validate_json(content)
 
         return ExtractionResult(
             summary=wire.summary,

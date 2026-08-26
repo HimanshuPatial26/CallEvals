@@ -5,10 +5,16 @@ decoration the PRD calls out for the vector DB.
 """
 
 import json
+import logging
+import os
 from pathlib import Path
+
+from pydantic import BaseModel, ValidationError
 
 from app.config import settings
 from app.schemas import Agent, CallRecord, Lead, RubricSettings
+
+logger = logging.getLogger(__name__)
 
 _RECORDS_DIR = settings.data_dir / "calls"
 _AUDIO_DIR = settings.data_dir / "audio"
@@ -21,37 +27,52 @@ _AGENTS_DIR.mkdir(parents=True, exist_ok=True)
 _LEADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _write_json(path: Path, model: BaseModel) -> None:
+    """Write via a temp file + atomic rename, so a process killed mid-write
+    (Ctrl+C, crash, OOM) leaves the old file intact instead of a truncated,
+    unparseable one — os.replace is atomic on both POSIX and Windows."""
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(model.model_dump_json(indent=2))
+    os.replace(tmp_path, path)
+
+
+def _read_json(path: Path, model_cls):
+    """Returns None (and logs) rather than raising for a file that doesn't exist,
+    is empty/truncated, or fails schema validation — a single damaged record
+    should surface as "not found" for that record, not a 500 for every caller."""
+    if not path.exists():
+        return None
+    try:
+        return model_cls.model_validate(json.loads(path.read_text()))
+    except (json.JSONDecodeError, ValidationError) as exc:
+        logger.warning("Skipping unreadable %s: %s", path, exc)
+        return None
+
+
 def audio_path_for(call_id: str, filename: str) -> Path:
     suffix = Path(filename).suffix or ".wav"
     return _AUDIO_DIR / f"{call_id}{suffix}"
 
 
 def save(record: CallRecord) -> None:
-    path = _RECORDS_DIR / f"{record.id}.json"
-    path.write_text(record.model_dump_json(indent=2))
+    _write_json(_RECORDS_DIR / f"{record.id}.json", record)
 
 
 def load(call_id: str) -> CallRecord | None:
-    path = _RECORDS_DIR / f"{call_id}.json"
-    if not path.exists():
-        return None
-    return CallRecord.model_validate(json.loads(path.read_text()))
+    return _read_json(_RECORDS_DIR / f"{call_id}.json", CallRecord)
 
 
 def list_all() -> list[CallRecord]:
-    records = [CallRecord.model_validate(json.loads(p.read_text())) for p in _RECORDS_DIR.glob("*.json")]
+    records = [r for p in _RECORDS_DIR.glob("*.json") if (r := _read_json(p, CallRecord)) is not None]
     return sorted(records, key=lambda r: r.created_at, reverse=True)
 
 
 def save_agent(agent: Agent) -> None:
-    (_AGENTS_DIR / f"{agent.id}.json").write_text(agent.model_dump_json(indent=2))
+    _write_json(_AGENTS_DIR / f"{agent.id}.json", agent)
 
 
 def load_agent(agent_id: str) -> Agent | None:
-    path = _AGENTS_DIR / f"{agent_id}.json"
-    if not path.exists():
-        return None
-    return Agent.model_validate(json.loads(path.read_text()))
+    return _read_json(_AGENTS_DIR / f"{agent_id}.json", Agent)
 
 
 def find_agent_by_name(name: str) -> Agent | None:
@@ -59,21 +80,16 @@ def find_agent_by_name(name: str) -> Agent | None:
 
 
 def list_agents() -> list[Agent]:
-    return sorted(
-        (Agent.model_validate(json.loads(p.read_text())) for p in _AGENTS_DIR.glob("*.json")),
-        key=lambda a: a.name,
-    )
+    agents = [a for p in _AGENTS_DIR.glob("*.json") if (a := _read_json(p, Agent)) is not None]
+    return sorted(agents, key=lambda a: a.name)
 
 
 def save_lead(lead: Lead) -> None:
-    (_LEADS_DIR / f"{lead.id}.json").write_text(lead.model_dump_json(indent=2))
+    _write_json(_LEADS_DIR / f"{lead.id}.json", lead)
 
 
 def load_lead(lead_id: str) -> Lead | None:
-    path = _LEADS_DIR / f"{lead_id}.json"
-    if not path.exists():
-        return None
-    return Lead.model_validate(json.loads(path.read_text()))
+    return _read_json(_LEADS_DIR / f"{lead_id}.json", Lead)
 
 
 def find_lead_by_phone(phone: str) -> Lead | None:
@@ -81,15 +97,13 @@ def find_lead_by_phone(phone: str) -> Lead | None:
 
 
 def list_leads() -> list[Lead]:
-    records = [Lead.model_validate(json.loads(p.read_text())) for p in _LEADS_DIR.glob("*.json")]
-    return sorted(records, key=lambda l: l.created_at, reverse=True)
+    leads = [l for p in _LEADS_DIR.glob("*.json") if (l := _read_json(p, Lead)) is not None]
+    return sorted(leads, key=lambda l: l.created_at, reverse=True)
 
 
 def load_settings() -> RubricSettings:
-    if not _SETTINGS_PATH.exists():
-        return RubricSettings()
-    return RubricSettings.model_validate(json.loads(_SETTINGS_PATH.read_text()))
+    return _read_json(_SETTINGS_PATH, RubricSettings) or RubricSettings()
 
 
 def save_settings(rubric: RubricSettings) -> None:
-    _SETTINGS_PATH.write_text(rubric.model_dump_json(indent=2))
+    _write_json(_SETTINGS_PATH, rubric)

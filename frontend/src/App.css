@@ -1727,6 +1727,13 @@ button:not(:disabled):active {
   width: 90%;
 }
 
+.call-detail-modal {
+  max-height: 90vh;
+  max-width: 980px;
+  overflow-y: auto;
+  width: 94%;
+}
+
 .lead-detail-modal .call-detail-columns > section {
   flex: 1;
   min-width: 0;

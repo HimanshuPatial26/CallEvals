@@ -30,11 +30,6 @@ function App() {
     setTab("agents");
   }
 
-  function goToCall(callId) {
-    setSelectedId(callId);
-    setTab("calls");
-  }
-
   const refresh = useCallback(async () => {
     try {
       const data = await listCalls();
@@ -167,7 +162,7 @@ function App() {
           ) : tab === "organization" ? (
             <OrganizationPage onDrillToAgent={goToAgent} />
           ) : (
-            <LeadPipelinePage onOpenCall={goToCall} />
+            <LeadPipelinePage />
           )}
         </div>
       </div>

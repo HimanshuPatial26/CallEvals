@@ -632,6 +632,25 @@ swallow other 400s; and a response wrapped in a `` ```json `` fence
 parses correctly. 166 backend tests passing overall (frontend
 unaffected).
 
+**Fifth incident (2026-08-09): transcript too long for the model's
+context window.** A real upload hit `Groq API error 400 ... "Please
+reduce the length of the messages or completion." "param": "messages"`
+— Groq's message says what to do, not why. This one isn't a code bug
+like the first four; it's a genuine capacity limit, so unlike the other
+fixes above, no automatic workaround (e.g. truncating the transcript and
+retrying) is attempted — silently cutting transcript content to fit would
+risk producing confidently-wrong analytics from a partial call with
+nothing telling the reviewer that anything was cut. Detected specifically
+(400, `error.param == "messages"`, message mentions "reduce the length")
+and re-raised as `Groq rejected this call: the transcript plus prompt is
+too long for GROQ_MODEL=<model>'s context window. Try a Groq model with a
+larger context window ... or a shorter recording.` instead of passing
+through Groq's unexplained generic text.
+
+**Verification.** 1 new test confirms the specific, actionable message
+("context window") is raised for this error shape. 167 backend tests
+passing overall.
+
 ## Lead pipeline (2026-08-08) — Kanban board, ROADMAP.md C5
 
 **Why this before C2–C4/C6:** taken out of order at explicit request — it's

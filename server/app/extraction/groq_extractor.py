@@ -53,6 +53,18 @@ raising. Without JSON mode a model is slightly more likely to wrap its
 answer in a ```json fence despite being told not to, so the response is
 unwrapped before parsing; Pydantic validation against WireExtractionResult
 is still what actually enforces the shape either way.
+
+Fourth production incident: a call whose transcript (plus the extraction
+prompt) exceeded GROQ_MODEL's context window got Groq's generic 400
+`"Please reduce the length of the messages or completion."` -- which
+doesn't say why. Unlike the other three incidents this isn't a code bug,
+it's a genuine capacity limit, and no truncation is attempted: silently
+dropping transcript content to fit would risk confidently-wrong analytics
+from a partial call with no signal to the reviewer that anything was cut.
+Detected specifically (400, `error.param == "messages"`, message mentions
+"reduce the length") and re-raised with what's actually going on and what
+to do about it (a Groq model with a larger context window, or a shorter
+recording) instead of Groq's unexplained generic message.
 """
 
 import json
@@ -124,6 +136,16 @@ def _is_json_mode_unsupported(response: httpx.Response) -> bool:
     return error.get("param") == "response_format"
 
 
+def _is_context_length_exceeded(response: httpx.Response) -> bool:
+    if response.status_code != 400:
+        return False
+    try:
+        error = response.json().get("error", {})
+    except ValueError:
+        return False
+    return error.get("param") == "messages" and "reduce the length" in error.get("message", "").lower()
+
+
 class GroqExtractor(ExtractionProvider):
     def __init__(self) -> None:
         if not settings.groq_api_key:
@@ -145,6 +167,22 @@ class GroqExtractor(ExtractionProvider):
             # instead of ignoring it -- retry once without it rather than
             # losing the call over a mode the model just doesn't have.
             response = self._post(payload)
+        if response.is_error and _is_context_length_exceeded(response):
+            # Not a code bug like the other cases here -- a genuine capacity
+            # limit. Groq's own message ("Please reduce the length of the
+            # messages or completion") doesn't say *why*: this call's
+            # transcript plus the extraction prompt is bigger than
+            # GROQ_MODEL's context window. No truncation is attempted here
+            # -- silently dropping transcript content would risk producing
+            # confidently-wrong analytics from a partial call with no
+            # signal to the reviewer that anything was cut. Surfaced as an
+            # actionable error instead.
+            raise RuntimeError(
+                f"Groq rejected this call: the transcript plus prompt is too long for "
+                f"GROQ_MODEL={settings.groq_model!r}'s context window. Try a Groq model with a "
+                f"larger context window (see https://console.groq.com/docs/models for sizes) or "
+                f"a shorter recording. Original error: {response.text}"
+            )
         if response.is_error:
             # response.raise_for_status() alone drops the response body --
             # exactly the part that says *why* (e.g. Groq returns 404 with a

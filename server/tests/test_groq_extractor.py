@@ -223,3 +223,33 @@ def test_markdown_fenced_json_response_is_parsed(groq_key, monkeypatch):
     result = GroqExtractor().extract(TRANSCRIPT)
 
     assert result.summary == "Customer interested but price-sensitive."
+
+
+def test_context_length_exceeded_raises_actionable_error(groq_key, monkeypatch):
+    """Production incident: a long transcript exceeded GROQ_MODEL's
+    context window and Groq returned a generic 400 that doesn't say why.
+    This should surface a clear explanation (and what to do about it), not
+    a passthrough of Groq's unexplained message, and it should NOT attempt
+    to truncate the transcript and retry -- that would risk silently
+    producing wrong analytics from a partial call."""
+
+    def fake_post(url, **kwargs):
+        request = httpx.Request("POST", url)
+        return httpx.Response(
+            400,
+            request=request,
+            json={
+                "error": {
+                    "message": "Please reduce the length of the messages or completion.",
+                    "type": "invalid_request_error",
+                    "param": "messages",
+                }
+            },
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    from app.extraction.groq_extractor import GroqExtractor
+
+    with pytest.raises(RuntimeError, match="context window"):
+        GroqExtractor().extract(TRANSCRIPT)

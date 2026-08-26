@@ -103,10 +103,62 @@ export function IconObjection(props) {
   );
 }
 
+export function IconQueued(props) {
+  return (
+    <Svg {...props} style={{ ...(props.style || {}), color: "var(--ce-text-muted)" }}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 8v4l3 2" />
+    </Svg>
+  );
+}
+
 export function StatusIcon({ status, size = 18 }) {
   if (status === "done") return <IconReady size={size} />;
   if (status === "failed") return <IconFailed size={size} />;
-  return <IconProcessing size={size} />;
+  if (status === "processing") return <IconProcessing size={size} />;
+  return <IconQueued size={size} />;
+}
+
+export function IconSearch(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l4 4" stroke="var(--ce-accent)" />
+    </Svg>
+  );
+}
+
+export function IconCoaching(props) {
+  return (
+    <Svg {...props}>
+      <path d="M4 19l6.5-6.5" />
+      <path d="M15 4l1.4 3.1L19.5 8.5 16.4 9.9 15 13l-1.4-3.1L10.5 8.5l3.1-1.4L15 4z" fill="var(--ce-accent)" stroke="none" />
+    </Svg>
+  );
+}
+
+export function IconChevronDown(props) {
+  return (
+    <Svg {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </Svg>
+  );
+}
+
+export function PlayGlyph({ playing }) {
+  if (playing) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14">
+        <rect x="2" y="1.5" width="3.5" height="11" rx="1" fill="var(--ce-canvas)" />
+        <rect x="8.5" y="1.5" width="3.5" height="11" rx="1" fill="var(--ce-canvas)" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14">
+      <path d="M3 1.5l9 5.5-9 5.5z" fill="var(--ce-canvas)" />
+    </svg>
+  );
 }
 
 // Waveform mark — 7 bars, 4px wide, 4px gap, 3px radius, descending from the

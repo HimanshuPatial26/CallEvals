@@ -71,22 +71,54 @@ server/
                      Deepgram (opt-in) implementations, selected via factory.py
     audio/           dual-channel split
     extraction/      ExtractionProvider interface + Gemini implementation
-    routers/         FastAPI routes
-    pipeline.py      orchestrates ASR -> extraction
-    storage.py       filesystem persistence
-    schemas.py       F1-F4 data model
+    routers/         FastAPI routes (calls, agents, leads, org, settings)
+    pipeline.py      orchestrates ASR -> extraction -> analysis
+    analysis.py      rule-based conversation-shape + behavior-flag computation,
+                     derived from the transcript/extraction — no LLM call
+    rollups.py       agent/org/lead aggregate views over stored calls
+    storage.py       filesystem persistence (calls, agents, leads, settings)
+    schemas.py       F1-F4 data model + Agent/Lead/RubricSettings
   eval/
     mock_calls/      6 scripted calls + hand-labeled ground truth (PRD section 9)
     run_precision_eval.py
   tests/
 frontend/
   src/
-    components/      UploadPanel, CallList, CallDetail, TranscriptView,
-                      NextStepsPanel, ObjectionTags
+    screens/         Calls, CallHistory, Agents, Org, Leads, Rubric
+    components/      Sidebar, TopHeader, AudioPlayer, TranscriptView,
+                      NextStepsPanel, ObjectionsList, CoachingPanel,
+                      ConversationShapePanel, LeadCard, ScoreCard, modals
     api/client.js
 docs/
   PRD.md
 ```
+
+### What's beyond the original Phase 0 scope
+
+The frontend redesign (see the mockup this repo's UI now follows) called for
+screens the original Phase 0 backend didn't support — agent performance,
+organization rollups, a lightweight lead/CRM view, and a rubric/flags settings
+screen. Rather than build a second frontend next to a thin backend, these got
+real (if minimal) backend support:
+
+- **Agents & leads** are auto-created from the `agent_name` / `lead_phone` fields
+  on upload — no separate onboarding flow, still filesystem-backed like calls.
+- **Behavior flags** (`app/analysis.py`) are rule-based thresholds computed from
+  the real transcript and extraction result — monologue length, discovery
+  question count, a dated next step, a disclosure-phrase check, a discount-before-
+  question check. Thresholds are editable on the Rubric & flags screen. This is
+  deliberately not the composite score PRD section 5 cut — it's the "behavior-level
+  flags instead" alternative the PRD itself proposed.
+- **Conversation shape** (talk ratio, questions asked, longest rep turn, words/min)
+  is computed purely from transcript timing/text. Sentiment is a small lexicon
+  heuristic over the same text, surfaced as unscored context per the PRD's own
+  caution about sentiment analysis (section 5) — never fed into a flag or score.
+- **Composite call score** stays cut. The Rubric screen has a toggle for it (the
+  mockup's own Phase-3 preview framing), but no scoring pipeline exists behind it;
+  turning it on shows an explicit "not built" state instead of a fabricated number.
+- **Org metrics** (coverage, extraction precision, manager engagement, behavior
+  improvement rate) are computed from real stored data per the PRD section 6
+  definitions — nothing sampled or seeded.
 
 ## Setup
 
@@ -197,5 +229,7 @@ they run without network access, an API key, or a downloaded Whisper model.
   The precision numbers above are from two real runs against
   `gemini-2.5-flash`, not one — the second after a prompt fix for
   over-segmentation, with the improvement measured, not assumed.
-- No auth, no multi-tenant storage, no CRM integration — all explicitly Phase 1+
-  per the PRD roadmap (section 9).
+- No auth, no multi-tenant storage — explicitly Phase 1+ per the PRD roadmap
+  (section 9). Leads are a lightweight in-app record (name/phone/unit/budget/
+  stage), created from upload fields — not a CRM integration; there's no sync
+  with an external CRM.

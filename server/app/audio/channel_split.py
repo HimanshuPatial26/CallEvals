@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
+from app.config import settings
+
 
 class NotDualChannelError(ValueError):
     pass
@@ -19,17 +21,19 @@ class NotDualChannelError(ValueError):
 def split_channels(audio_path: Path) -> tuple[np.ndarray, np.ndarray, int]:
     """Return (rep_channel, customer_channel, sample_rate) as mono float32 arrays.
 
-    Channel 0 is treated as the rep track, channel 1 as the customer track — this
-    matches how most dialers export dual-channel recordings, but it's a convention,
-    not something the audio format tells you. Confirm the convention with each
-    brokerage's dialer during discovery (PRD open question #2).
+    Which physical channel is the rep track is a dialer/recorder export
+    convention, not something the audio format tells you — settings.rep_channel_index
+    (REP_CHANNEL_INDEX in .env) picks it, defaulting to channel 0. Confirm the
+    convention with each brokerage's dialer during discovery (PRD open question #2).
     """
     data, sample_rate = sf.read(str(audio_path), always_2d=True, dtype="float32")
     if data.shape[1] < 2:
         raise NotDualChannelError(
             f"{audio_path} has {data.shape[1]} channel(s); dual-channel split needs 2"
         )
-    return data[:, 0], data[:, 1], sample_rate
+    rep_index = settings.rep_channel_index
+    customer_index = 1 - rep_index
+    return data[:, rep_index], data[:, customer_index], sample_rate
 
 
 def is_dual_channel(audio_path: Path) -> bool:

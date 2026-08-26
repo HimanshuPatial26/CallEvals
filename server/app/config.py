@@ -16,6 +16,13 @@ class Settings(BaseSettings):
 
     asr_provider: str = "faster_whisper"  # "faster_whisper" | "deepgram"
 
+    # Which physical channel of a dual-channel recording is the rep. This is a
+    # dialer/recorder export convention — nothing in the audio file itself says
+    # which channel is which — so it's configurable rather than assumed. Affects
+    # both app/audio/channel_split.py (faster-whisper path) and
+    # app/asr/deepgram_provider.py (Deepgram path) identically.
+    rep_channel_index: int = 0  # 0 | 1
+
     whisper_model_size: str = "base"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"

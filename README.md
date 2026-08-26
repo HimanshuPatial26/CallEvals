@@ -651,6 +651,26 @@ through Groq's unexplained generic text.
 ("context window") is raised for this error shape. 167 backend tests
 passing overall.
 
+**Sixth incident (2026-08-09), a different limit: org-wide rate limiting,
+not a per-request ceiling.** `Groq API error 413 ... "Request too large
+for model qwen/qwen3.6-27b ... on tokens per minute (TPM): Limit 8000,
+Requested 8231" ... "code": "rate_limit_exceeded"`. Groq uses 413, not the
+more usual 429, for this. Unlike the context-window incident above, this
+cap is a rolling per-minute window shared across the whole account (not
+tied to this one call's size), so it's genuinely transient — a retry a
+minute later can succeed with no other change. The re-raised message says
+that explicitly, rather than reading like the same dead end as the
+context-window case: `Groq's tokens-per-minute rate limit was hit ...
+This is usually transient -- wait about a minute and retry.` No automatic
+wait-and-retry was added — this sandbox can't verify Groq's actual
+rate-limit headers/reset timing against the real API, and a blind sleep
+inside the request path is a bigger behavior change than a clearer error
+message should make unasked.
+
+**Verification.** 1 new test confirms the message says "transient" for
+this exact error shape (413, `code: rate_limit_exceeded`, `type:
+tokens`). 168 backend tests passing overall.
+
 ## Lead pipeline (2026-08-08) — Kanban board, ROADMAP.md C5
 
 **Why this before C2–C4/C6:** taken out of order at explicit request — it's

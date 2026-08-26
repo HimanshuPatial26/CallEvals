@@ -65,6 +65,18 @@ Detected specifically (400, `error.param == "messages"`, message mentions
 "reduce the length") and re-raised with what's actually going on and what
 to do about it (a Groq model with a larger context window, or a shorter
 recording) instead of Groq's unexplained generic message.
+
+Fifth production incident, and a different kind of limit: a 413 (not the
+more usual 429) with `"code": "rate_limit_exceeded"`, `"type": "tokens"`
+-- an org-wide tokens-per-minute cap on the free/on-demand tier, not a
+per-request context-window ceiling. This one genuinely is transient (the
+cap is a rolling per-minute window), so the re-raised message says so
+explicitly rather than reading like the same dead end as the context-
+window case. No automatic wait-and-retry is attempted here either --
+this environment can't verify Groq's actual reset timing or rate-limit
+headers against the real API, and a blind sleep in the request path is a
+bigger behavior change than a message improvement should make on its
+own judgment.
 """
 
 import json
@@ -146,6 +158,17 @@ def _is_context_length_exceeded(response: httpx.Response) -> bool:
     return error.get("param") == "messages" and "reduce the length" in error.get("message", "").lower()
 
 
+def _is_tpm_rate_limited(response: httpx.Response) -> bool:
+    # Groq returns 413 (not the more usual 429) for this one.
+    if response.status_code != 413:
+        return False
+    try:
+        error = response.json().get("error", {})
+    except ValueError:
+        return False
+    return error.get("code") == "rate_limit_exceeded" and error.get("type") == "tokens"
+
+
 class GroqExtractor(ExtractionProvider):
     def __init__(self) -> None:
         if not settings.groq_api_key:
@@ -182,6 +205,24 @@ class GroqExtractor(ExtractionProvider):
                 f"GROQ_MODEL={settings.groq_model!r}'s context window. Try a Groq model with a "
                 f"larger context window (see https://console.groq.com/docs/models for sizes) or "
                 f"a shorter recording. Original error: {response.text}"
+            )
+        if response.is_error and _is_tpm_rate_limited(response):
+            # Also not a code bug: a free/on-demand-tier tokens-per-minute
+            # cap, shared across the whole org, not just this call -- and
+            # unlike the context-window case this one is transient (the
+            # cap resets on a rolling per-minute window), so it's worth
+            # saying that explicitly rather than making it read like a
+            # dead end. No automatic wait-and-retry here either: this
+            # environment can't verify Groq's actual reset timing/headers
+            # against the real API, and a blind sleep in the request path
+            # is a bigger behavior change than this fix should make on its
+            # own judgment.
+            raise RuntimeError(
+                f"Groq's tokens-per-minute rate limit was hit for GROQ_MODEL={settings.groq_model!r} "
+                f"(a free/on-demand-tier cap shared across the whole account, not just this call). "
+                f"This is usually transient -- wait about a minute and retry. If it keeps happening, "
+                f"see https://console.groq.com/settings/billing to raise the limit. "
+                f"Original error: {response.text}"
             )
         if response.is_error:
             # response.raise_for_status() alone drops the response body --

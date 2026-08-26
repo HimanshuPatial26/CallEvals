@@ -253,3 +253,37 @@ def test_context_length_exceeded_raises_actionable_error(groq_key, monkeypatch):
 
     with pytest.raises(RuntimeError, match="context window"):
         GroqExtractor().extract(TRANSCRIPT)
+
+
+def test_tpm_rate_limit_raises_actionable_transient_error(groq_key, monkeypatch):
+    """Production incident: a 413 (not the usual 429) with
+    code=rate_limit_exceeded, type=tokens -- an org-wide tokens-per-minute
+    cap, not a per-request context-window ceiling. Unlike the context-
+    window case this is transient, so the message should say so, not read
+    like the same dead end."""
+
+    def fake_post(url, **kwargs):
+        request = httpx.Request("POST", url)
+        return httpx.Response(
+            413,
+            request=request,
+            json={
+                "error": {
+                    "message": (
+                        "Request too large for model `qwen/qwen3.6-27b` in organization "
+                        "`org_01kvah8090fspr9sh7b0902hac` service tier `on_demand` on tokens "
+                        "per minute (TPM): Limit 8000, Requested 8231, please reduce your "
+                        "message size and try again."
+                    ),
+                    "type": "tokens",
+                    "code": "rate_limit_exceeded",
+                }
+            },
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    from app.extraction.groq_extractor import GroqExtractor
+
+    with pytest.raises(RuntimeError, match="transient"):
+        GroqExtractor().extract(TRANSCRIPT)

@@ -38,7 +38,7 @@ export default function AgentQualityTrendPanel({ distribution, consistency, tren
           <h3 style={{ margin: 0 }}>Weekly trend</h3>
           <div className="chart-legend">
             <span className="chart-legend-item">
-              <span className="chart-legend-swatch" style={{ background: "#f0923e" }} />
+              <span className="chart-legend-swatch" style={{ background: "#f0913c" }} />
               SCORE
             </span>
             <span className="chart-legend-item">

@@ -10,6 +10,17 @@ import OrganizationPage from "./components/OrganizationPage";
 import LeadPipelinePage from "./components/LeadPipelinePage";
 import LineSidebar from "./components/LineSidebar";
 
+// Design system 01 · Logo, "32 · app icon" specimen: 6 bars descending
+// from the peak, exact heights/colors from the reference.
+const BRAND_MARK_BARS = [
+  [45, "#6B5B49"],
+  [70, "#A0713C"],
+  [100, "#F0913C"],
+  [78, "#FFB169"],
+  [52, "#A0713C"],
+  [34, "#6B5B49"],
+];
+
 const NAV_ITEMS = [
   { key: "calls", label: "Calls", crumb: "LIBRARY / CALLS", title: "Call inbox" },
   { key: "agents", label: "Agent Performance", crumb: "QUALITY / AGENT", title: "Agent performance" },
@@ -67,7 +78,11 @@ function App() {
     <div className="app">
       <aside className="app-sidebar">
         <div className="brand">
-          <div className="brand-mark">CE</div>
+          <div className="brand-mark" aria-hidden="true">
+            {BRAND_MARK_BARS.map(([height, color], i) => (
+              <span key={i} style={{ height: `${height}%`, background: color }} />
+            ))}
+          </div>
           <div>
             <div className="brand-name">CallEvals</div>
             <div className="brand-tagline">CALL INTELLIGENCE</div>
@@ -85,9 +100,9 @@ function App() {
             // stays in sync with which page is actually showing.
             key={tab}
             items={navLabels}
-            accentColor="#f0923e"
-            textColor="#9db6b3"
-            markerColor="#56716e"
+            accentColor="#f0913c"
+            textColor="#a79f95"
+            markerColor="#3a342e"
             showIndex
             showMarker
             proximityRadius={55}

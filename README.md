@@ -1397,6 +1397,114 @@ form controls, with `--font-mono` labels (nav index numbers, "PIPELINE
 STATUS", topbar breadcrumbs) visibly unchanged. `eslint` clean on
 `index.js`.
 
+## "Ember" design system implementation (2026-08-26)
+
+Implemented `CallEvals Design System.dc.html`, a Claude Design canvas export
+the user supplied with the instruction to "strictly follow this design
+system." It's the finalized deliverable from a design exploration (the same
+zip's `Color and Type Pairings.dc.html` shows four candidate directions —
+Ember, Signal, Ledger, Studio — with Ember picked; `Logo and Icon System.dc.html`
+shows four logo candidates — monogram tile, waveform, scored arc,
+wordmark-only — with the waveform picked, confirmed by cross-referencing
+which one the main system doc's own "01 · Logo" section actually uses).
+Both of those are exploration/rationale docs, not separate specs to
+implement; `support.js` is the canvas editor's own runtime (`dc-runtime`),
+not app code. Replaces the "Amber Ledger" theme (teal-tinted surfaces,
+Hyperlegible Sans, LineSidebar with no icon, Strands-based empty state) with
+a warm-neutral palette, new type, a real brand mark, and a 24px icon set —
+this is a values-and-components pass, not a rebuild: every already-built
+interactive piece (LineSidebar's proximity nav, BorderGlow, Strands, the
+lead/call popup-on-popup pattern) stays, recolored to the new tokens rather
+than replaced, since none of it contradicts the system doc's actual rules.
+
+**Tokens (`App.css` `:root`).** Rewrote every color/radius/shadow value to
+the doc's own swatches: canvas `#0C0B0A`, surface `#100E0C`, selected/hover
+fill `#1C1713`, border `#26221E`, divider `#1E1A17`, one amber accent
+`#F0913C`/hover `#FFB169`, success `#4FBF8B`, destructive `#E0605E`, text
+`#F4EFE8`/`#A79F95`/`#8C8378`/`#6F675E`. Radius scale 7 (control) / 10
+(card) / 14 (panel) / 999 (pill) — chip (5) has no distinct call site since
+every existing chip-like element already sits on the pill radius. Elevation
+collapsed to the doc's two shadows (flat/overlay `0 8 24 rgba(0,0,0,.45)`,
+accent glow `0 10 30 rgba(240,145,60,.22)`) — old per-component glow values
+(button hover halos, card hover lifts, modal shadow) now resolve through
+these same two tokens instead of ad hoc rgba tuning. `--accent-purple*`
+variable *names* are kept (renaming ~200 call sites wasn't worth a
+values-only swap) but now hold the ember hex values. `--accent-cyan` is a
+**deliberate, documented exception** to the doc's "no second accent hue"
+rule: that rule is about brand/chrome (nav, buttons, status), not
+categorical data-vis coding — the dual-line trend chart's secondary series
+and the 10-category objection-tag palette are unreadable collapsed to one
+hue. Every other hardcoded color literal in `App.css` and the chart/sparkline
+JS components (old teal-tinted rgba triples, the old accent hex `#f0923e`)
+was found and repointed to the new values (verified with `grep` sweeps, not
+assumed complete from memory).
+
+**No ambient gradients.** The doc's DON'T list is explicit: no gradient
+except the score bar and the empty-state glow. The old body background
+(three overlapping radial-gradient teal/amber washes), `.panel`'s
+diagonal-gradient fill, and the sidebar/topbar/model-status/assist-panel
+gradient fills are now flat surface colors. Button gradients
+(`.assist-button`, `.outcome-panel button`, `.modal-actions button:last-child`)
+are now flat accent fill with an explicit accent-hover state, matching the
+doc's Primary Button spec instead of a two-stop purple→violet gradient.
+
+**Fonts.** Instrument Sans (self-hosted via `@fontsource`, replacing the
+Hyperlegible Sans swap from earlier the same day — superseded by this
+doc's explicit type choice) + JetBrains Mono (unchanged, already
+self-hosted). `--font-mono` keeps its existing scope (labels, filenames,
+IDs, timestamps, scores, eyebrows — "mono for anything machine-generated"
+per the doc's own type rule) untouched.
+
+**Logo mark.** The sidebar's "CE" gradient box is now the doc's 7-bar
+waveform mark (6 visible bars at this size, descending 45/70/100/78/52/34%
+from the peak, exact hex per bar) — a static `BRAND_MARK_BARS` array
+rendered as `<span>`s in `App.js`, styled via `.brand-mark`/`.brand-mark span`
+in `App.css`. Deliberately **not animated** at rest: the doc's own rule is
+"animating bars is reserved for processing states," so the same waveform
+shape only animates in the empty-state card (see below) and nowhere else at
+idle.
+
+**Icon set (`components/icons.js`, new).** Only the glyphs the app actually
+needed so far — Play/Retry/Processing (call-row leading icon) and a
+Ready-check/Failed-cross (status chip icon) — copied verbatim from the
+doc's SVG paths, not the full catalog speculatively. Wired into
+`CallList.js`'s call rows per the doc's own "CALL ROW" component spec:
+leading icon, mono filename, status chip with matching check/cross glyph,
+border+background per state (`#F0913C`/`#1C1713` selected vs.
+`#26221E`/`#100E0C` rest).
+
+**Empty state.** `CallEmptyState.js` no longer renders the OGL-based
+Strands ambient line effect — replaced with the doc's own "EMPTY & LOADING"
+component: a dashed-border card, radial accent glow background, and the
+4-bar waveform (the brand mark, this time genuinely animating, per the rule
+above) over a title/subtitle. `ScoreBreakdownPanel`'s Strands backdrop and
+`UploadPanel`'s BorderGlow were left in place — both are real, working
+motion tied to a specific state, not idle decoration — but their `colors`
+props were repointed off the old teal/amber mix onto ember-only tones.
+
+**Nav item background fill.** The doc's "NAV ITEM · 3 STATES" component
+adds a background fill behind the active/hover row that `LineSidebar`
+doesn't natively render (it only recolors text/marker via a continuous
+proximity-driven `color-mix`, with no per-item background). Added as pure
+CSS (`.line-sidebar__item[aria-current="true"]` / `:hover`) on top of the
+component's existing, unmodified interaction logic — `aria-current` is
+already LineSidebar's own persistent "this is the current page" marker
+(see its `activeRef`), so no new plumbing was needed. `accentColor`/
+`textColor`/`markerColor` props recolored to the new tokens; the doc's exact
+3-state marker colors (`#F0913C` active / `#6B5B49` hover / `#3A342E` rest)
+don't map 1:1 onto LineSidebar's 2-color continuous blend, so the closest
+two endpoints were used (rest `#3A342E`, hot `#F0913C`) and the mid-tone is
+approximated by the interpolation itself as the cursor approaches, rather
+than forking the component's rendering to add a third fixed state.
+
+**Verification.** Live Playwright pass against the running dev servers,
+0 console errors: Calls tab (empty state, populated list with all three
+statuses, a selected call's full score/transcript/coaching breakdown),
+Leads Kanban board, Agent Performance, Organization, the assist panel, and
+the lead-detail → call-analysis popup-on-popup all screenshotted and
+visually checked against the doc's specimens. `eslint` clean across all of
+`frontend/src`.
+
 ## What changed from the original scaffold
 
 The uploaded `call_center_analyser` project was two competing API spikes

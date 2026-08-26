@@ -1,37 +1,21 @@
-import Strands from "./Strands";
-import usePrefersReducedMotion from "../hooks/usePrefersReducedMotion";
+// The right-hand panel before a call is selected. Design system 06 ·
+// Components > "EMPTY & LOADING": a dashed card with a radial accent glow
+// and the brand mark's 4 bars, animating -- purely decorative, no data of
+// its own. Replaces the earlier Strands-based ambient backdrop.
+const WAVEFORM_BARS = ["#6B5B49", "#F0913C", "#FFB169", "#A0713C"];
+const WAVEFORM_DELAYS = ["-0.7s", "-0.4s", "-0.15s", "0s"];
 
-// The right-hand panel before a call is selected. Fills the same visual
-// weight CallDetail will occupy once there's something to show, with the
-// ambient Strands background as a placeholder moment rather than a blank
-// page -- purely decorative, no data of its own.
 export default function CallEmptyState() {
-  const reducedMotion = usePrefersReducedMotion();
-
   return (
     <div className="call-empty-state">
-      {!reducedMotion && (
-        <div className="call-empty-backdrop" aria-hidden="true">
-          <Strands
-            colors={["#f0923e", "#2dd4bf", "#d9752c"]}
-            count={5}
-            speed={0.28}
-            amplitude={3.2}
-            waviness={0.7}
-            thickness={0.6}
-            glow={2.1}
-            taper={1.4}
-            spread={1.6}
-            intensity={0.4}
-            saturation={1.05}
-            opacity={0.4}
-            scale={1.3}
-          />
-        </div>
-      )}
       <div className="call-empty-content">
+        <span className="call-empty-waveform" aria-hidden="true">
+          {WAVEFORM_BARS.map((color, i) => (
+            <span key={i} style={{ background: color, animationDelay: WAVEFORM_DELAYS[i] }} />
+          ))}
+        </span>
         <p className="call-empty-title">Select a call to review it.</p>
-        <p className="call-empty-sub">Score breakdown, transcript, objections, and coaching will appear here.</p>
+        <p className="call-empty-sub">Score, transcript, objections, and coaching will appear here.</p>
       </div>
     </div>
   );

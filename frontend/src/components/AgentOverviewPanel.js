@@ -32,7 +32,7 @@ export default function AgentOverviewPanel({ report, title }) {
           <span className="kpi-value">{fmtScore(report.avg_call_score)}</span>
           {scoreTrend && (
             <div className="kpi-tile-spark">
-              <Sparkline points={scoreTrend} tint="#f0923e" />
+              <Sparkline points={scoreTrend} tint="#f0913c" />
             </div>
           )}
         </div>
@@ -41,7 +41,7 @@ export default function AgentOverviewPanel({ report, title }) {
           <span className="kpi-value">{report.calls_analyzed}</span>
           {callsTrend && (
             <div className="kpi-tile-spark">
-              <Sparkline points={callsTrend} tint="#ffb066" />
+              <Sparkline points={callsTrend} tint="#ffb169" />
             </div>
           )}
         </div>

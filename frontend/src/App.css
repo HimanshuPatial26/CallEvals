@@ -1,56 +1,68 @@
 :root {
-  /* Amber Ledger -- direct palette pull from the reference clip: near-black
-     teal-tinted surfaces, a deep teal ambient void, one amber/orange accent
-     carrying every active/brand moment. --accent-purple* variable names are
-     kept (touched throughout this file) but now hold the amber values --
-     renaming ~200 call sites wasn't worth it for a values-only swap. */
-  --bg-base: #0a1213;
-  --bg-panel: linear-gradient(160deg, rgba(240, 146, 62, 0.08), rgba(9, 18, 19, 0.78));
-  --bg-panel-solid: rgba(13, 24, 26, 0.9);
-  --bg-inset: rgba(6, 13, 14, 0.55);
-  --bg-hover: rgba(240, 146, 62, 0.1);
+  /* Ember -- values pulled directly from "CallEvals Design System.dc.html"
+     (the design-system export, 2026-08-26): warm neutral dark surfaces, one
+     amber accent for every active/brand moment. --accent-purple* variable
+     names are kept (touched throughout this file, and predate this palette)
+     but now hold the ember accent values -- renaming ~200 call sites wasn't
+     worth it for a values-only swap. --accent-cyan is a deliberate,
+     documented exception to the system's "no second accent hue" rule -- see
+     the note below.
+     Token -> spec name: bg-base=canvas, bg-panel-solid/bg-inset=surface,
+     bg-hover=selected/hover fill, border=border, border-soft=divider. */
+  --bg-base: #0c0b0a;
+  /* Flat, not gradient -- the system's own DON'T list is explicit ("no
+     gradients except the score bar and the empty-state glow"), and every
+     card specimen in the doc is a flat fill. */
+  --bg-panel: #100e0c;
+  --bg-panel-solid: #100e0c;
+  --bg-inset: #100e0c;
+  --bg-hover: #1c1713;
 
-  --border: rgba(240, 146, 62, 0.2);
-  --border-strong: rgba(240, 146, 62, 0.42);
-  /* Neutral hairline/wash, deliberately NOT amber -- amber now means
-     "active/brand," so purely structural borders and "neutral state" chips
-     (sentiment-neutral, compliance-N/A, etc.) use this teal-grey instead. */
-  --border-soft: rgba(148, 178, 175, 0.14);
+  --border: #26221e;
+  --border-strong: #33302b;
+  /* Divider -- a hair subtler than --border, used between header/body
+     regions inside a card (spec's #1E1A17). Deliberately NOT amber: amber
+     means "active/brand," so purely structural borders and "neutral state"
+     chips (sentiment-neutral, compliance-N/A, etc.) stay neutral. */
+  --border-soft: #1e1a17;
 
-  --text-primary: #eef4f2;
-  --text-secondary: #9db6b3;
-  --text-muted: #6f8b88;
-  --text-faint: #56716e;
+  --text-primary: #f4efe8;
+  --text-secondary: #a79f95;
+  --text-muted: #8c8378;
+  --text-faint: #6f675e;
 
-  --accent-purple: #f0923e;
-  --accent-purple-bright: #ffb066;
-  --accent-violet: #d9752c;
-  /* Kept as a genuine second hue (not repointed to amber): the video's own
-     ambient glow is teal, and this also carries the dual-line chart's
-     secondary series and the objection-tag category palette, which need
-     more than one hue to stay scannable. */
+  --accent-purple: #f0913c;
+  --accent-purple-bright: #ffb169;
+  /* Genuine, documented exception to the design system's "no second accent
+     hue" rule: that rule governs brand/chrome (nav, buttons, status), not
+     categorical data-vis color coding. A multi-series chart and the
+     10-category objection-tag palette are unreadable in one hue -- so this
+     stays teal, distinct from the ember accent, for legibility. */
   --accent-cyan: #2dd4bf;
   --accent-cyan-bright: #5eead4;
   --accent-magenta: #d946ef;
-  --accent-green: #4ade80;
-  --accent-amber: #fbbf24;
-  --accent-rose: #fb7185;
+  --accent-green: #4fbf8b;
+  --accent-amber: #f0913c;
+  --accent-rose: #e0605e;
 
-  --font-sans: "Hyperlegible Sans", system-ui, -apple-system, sans-serif;
+  --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", monospace;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  /* chip 5 (unused directly -- existing chip/tag elements already sit on
+     --radius-full per spec's "999 status") · control 7 · card 10 · panel 14
+     · pill 999 */
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
   --radius-full: 999px;
 
-  --glow-purple: 0 0 24px rgba(240, 146, 62, 0.4);
-  --glow-purple-soft: 0 0 14px rgba(240, 146, 62, 0.25);
-  --shadow-panel: 0 18px 40px rgba(3, 7, 8, 0.45);
-  --shadow-modal: 0 28px 70px rgba(0, 0, 0, 0.6), 0 0 60px rgba(240, 146, 62, 0.2);
+  --glow-purple: 0 10px 30px rgba(240, 145, 60, 0.22);
+  --glow-purple-soft: 0 10px 30px rgba(240, 145, 60, 0.16);
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-modal: 0 8px 24px rgba(0, 0, 0, 0.45), 0 10px 30px rgba(240, 145, 60, 0.18);
 
   --transition-fast: 120ms ease;
-  --transition: 180ms ease;
+  --transition: 200ms ease;
 }
 
 * {
@@ -69,10 +81,10 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "tnum" 1;
-  background: radial-gradient(1100px 620px at 12% -10%, rgba(31, 76, 73, 0.5), transparent 60%),
-    radial-gradient(900px 520px at 88% 4%, rgba(240, 146, 62, 0.1), transparent 62%),
-    radial-gradient(700px 700px at 60% 110%, rgba(18, 51, 49, 0.35), transparent 60%), var(--bg-base);
-  background-attachment: fixed;
+  /* Flat canvas -- the design system's DON'T list rules out ambient
+     gradient washes ("no gradients except the score bar and the
+     empty-state glow"); the old multi-radial teal/amber wash predates it. */
+  background: var(--bg-base);
 }
 
 h1,
@@ -130,7 +142,7 @@ button:not(:disabled):active {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(240, 146, 62, 0.35);
+  background: rgba(240, 145, 60, 0.35);
   border-radius: 8px;
 }
 
@@ -156,6 +168,18 @@ button:not(:disabled):active {
   }
   100% {
     transform: translateX(300%);
+  }
+}
+
+/* Design system's ceBar keyframe -- the brand mark's bars, animating.
+   Reserved for actual processing/loading states, never the resting logo. */
+@keyframes waveform-bar {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+  }
+  50% {
+    transform: scaleY(1);
   }
 }
 
@@ -193,8 +217,7 @@ button:not(:disabled):active {
   display: flex;
   flex-direction: column;
   gap: 26px;
-  background: linear-gradient(180deg, rgba(14, 26, 27, 0.75), rgba(6, 12, 13, 0.45));
-  backdrop-filter: blur(18px);
+  background: var(--bg-base);
   position: sticky;
   top: 0;
   height: 100vh;
@@ -207,20 +230,22 @@ button:not(:disabled):active {
   padding: 0 6px;
 }
 
+/* Waveform mark (design system 01 · Logo, "32 · app icon" size): 6 bars,
+   3.5px wide, descending from the peak (45/70/100/78/52/34%). Static here
+   -- per the system's own rule, animating the bars is reserved for
+   processing states (see .model-status-bar-fill and the empty-state
+   waveform), not the brand mark at rest. */
 .brand-mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent-purple), #c9691f);
-  box-shadow: 0 0 22px rgba(240, 146, 62, 0.55);
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 14px;
-  color: #1a0f05;
+  gap: 3px;
+  height: 32px;
   flex-shrink: 0;
+}
+
+.brand-mark span {
+  width: 3.5px;
+  border-radius: 2px;
 }
 
 .brand-name {
@@ -232,8 +257,8 @@ button:not(:disabled):active {
 .brand-tagline {
   font-family: var(--font-mono);
   font-size: 9px;
-  letter-spacing: 0.18em;
-  color: var(--text-faint);
+  letter-spacing: 0.24em;
+  color: var(--text-muted);
   margin-top: 1px;
 }
 
@@ -262,12 +287,34 @@ button:not(:disabled):active {
   border-radius: 4px;
 }
 
+/* Design system 06 · Components > "NAV ITEM · 3 STATES" adds a
+   background fill for the active/hover row on top of LineSidebar's own
+   proximity-driven color/shift effect (unmodified) -- the fill is a pure
+   CSS addition, not a change to the component's interaction logic.
+   aria-current="true" is LineSidebar's own persistent "this is the
+   current page" marker (see its handleClick/activeRef), independent of
+   hover. */
+.line-sidebar__item {
+  padding: 8px 10px;
+  margin-left: -10px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.line-sidebar__item[aria-current="true"] {
+  background: var(--bg-hover);
+}
+
+.line-sidebar__item:hover:not([aria-current="true"]) {
+  background: var(--border-soft);
+}
+
 .model-status {
   margin-top: auto;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 14px;
-  background: linear-gradient(155deg, rgba(240, 146, 62, 0.14), rgba(8, 15, 16, 0.6));
+  background: var(--bg-panel-solid);
 }
 
 .model-status-head {
@@ -305,7 +352,7 @@ button:not(:disabled):active {
 }
 
 .model-status-text strong {
-  color: #ffd9ad;
+  color: var(--accent-purple-bright);
   font-weight: 600;
 }
 
@@ -313,7 +360,7 @@ button:not(:disabled):active {
   height: 3px;
   border-radius: 3px;
   margin-top: 11px;
-  background: rgba(240, 146, 62, 0.2);
+  background: rgba(240, 145, 60, 0.2);
   overflow: hidden;
   position: relative;
 }
@@ -339,8 +386,7 @@ button:not(:disabled):active {
   gap: 18px;
   padding: 18px 28px;
   border-bottom: 1px solid var(--border-soft);
-  background: rgba(7, 14, 15, 0.6);
-  backdrop-filter: blur(16px);
+  background: var(--bg-base);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -360,6 +406,9 @@ button:not(:disabled):active {
   letter-spacing: -0.01em;
 }
 
+/* Primary button (design system 06 · Components > BUTTONS): flat accent
+   fill, no gradient -- the system's own DON'T list rules out ambient
+   glow/gradient on buttons. */
 .assist-button {
   all: unset;
   cursor: pointer;
@@ -368,26 +417,25 @@ button:not(:disabled):active {
   align-items: center;
   gap: 8px;
   padding: 9px 15px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: #0d0620;
-  background: linear-gradient(135deg, var(--accent-purple-bright), var(--accent-violet));
-  box-shadow: var(--glow-purple);
-  transition: box-shadow var(--transition-fast);
+  color: #1a1208;
+  background: var(--accent-purple);
+  transition: background var(--transition-fast);
   white-space: nowrap;
 }
 
 .assist-button:hover {
-  box-shadow: 0 0 38px rgba(240, 146, 62, 0.65);
+  background: var(--accent-purple-bright);
 }
 
 .assist-button-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #0d0620;
+  background: #1a1208;
 }
 
 .app-content {
@@ -414,10 +462,9 @@ button:not(:disabled):active {
   bottom: 22px;
   width: 340px;
   z-index: 60;
-  border-radius: 18px;
-  border: 1px solid rgba(240, 146, 62, 0.4);
-  background: linear-gradient(165deg, rgba(19, 33, 35, 0.96), rgba(7, 14, 15, 0.97));
-  backdrop-filter: blur(22px);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel-solid);
   box-shadow: var(--shadow-modal);
   overflow: hidden;
   animation: modal-in var(--transition) cubic-bezier(0.2, 0.6, 0.3, 1);
@@ -425,7 +472,7 @@ button:not(:disabled):active {
 
 .assist-panel-head {
   padding: 15px 17px;
-  border-bottom: 1px solid rgba(240, 146, 62, 0.22);
+  border-bottom: 1px solid var(--border-soft);
   display: flex;
   align-items: center;
   gap: 9px;
@@ -435,7 +482,7 @@ button:not(:disabled):active {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.18em;
-  color: #ffcf9e;
+  color: var(--accent-purple-bright);
   flex: 1;
 }
 
@@ -448,7 +495,7 @@ button:not(:disabled):active {
 }
 
 .assist-panel-close:hover {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .assist-panel-body {
@@ -461,7 +508,7 @@ button:not(:disabled):active {
 .assist-panel-body p {
   font-size: 12.5px;
   line-height: 1.6;
-  color: #ddd6f8;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -522,10 +569,12 @@ button:not(:disabled):active {
   margin-top: 0;
 }
 
-/* File-upload control, styled as a standalone pill button (design
-   supplied verbatim, colors kept as given rather than reskinned to the
-   amber theme). Scoped to .upload-button so it doesn't leak onto every
-   other <button> in the app. */
+/* "UPLOAD A CALL" mono pill (design system 06 · Components > BUTTONS):
+   cream fill, dark text, uppercase mono label. No hover state is specified
+   in the doc -- accent-tinted lift chosen to match the rest of this app's
+   button hover language (assist-button, outcome-panel button) rather than
+   inventing an unrelated treatment. Scoped to .upload-button so it doesn't
+   leak onto every other <button> in the app. */
 .upload-button-row {
   display: flex;
   justify-content: center;
@@ -534,26 +583,24 @@ button:not(:disabled):active {
 
 .upload-button {
   display: inline-block;
-  padding: 0.45em 1.05em;
-  font-size: 9px;
+  padding: 9px 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.1em;
   font-weight: 500;
-  color: #000;
-  background-color: #fff;
+  color: var(--bg-inset);
+  background-color: var(--text-primary);
   border: none;
-  border-radius: 45px;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease 0s;
+  border-radius: var(--radius-sm);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
   cursor: pointer;
   outline: none;
   text-align: center;
 }
 
 .upload-button:hover {
-  background-color: #23c483;
-  box-shadow: 0px 6px 12px rgba(46, 229, 157, 0.4);
-  color: #fff;
+  box-shadow: var(--glow-purple-soft);
   transform: translateY(-2px);
 }
 
@@ -602,7 +649,7 @@ button:not(:disabled):active {
 .agent-name-input:focus {
   outline: none;
   border-color: var(--accent-purple);
-  box-shadow: 0 0 0 3px rgba(240, 146, 62, 0.18);
+  box-shadow: 0 0 0 3px rgba(240, 145, 60, 0.18);
 }
 
 .hint {
@@ -622,7 +669,7 @@ button:not(:disabled):active {
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  border: 2px solid rgba(240, 146, 62, 0.25);
+  border: 2px solid rgba(240, 145, 60, 0.25);
   border-top-color: var(--accent-purple-bright);
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -631,8 +678,8 @@ button:not(:disabled):active {
 .error {
   color: var(--accent-rose);
   font-size: 0.9rem;
-  background: rgba(251, 113, 133, 0.1);
-  border: 1px solid rgba(251, 113, 133, 0.28);
+  background: rgba(224, 96, 94, 0.1);
+  border: 1px solid rgba(224, 96, 94, 0.28);
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.7rem;
 }
@@ -662,23 +709,37 @@ button:not(:disabled):active {
   padding: 0;
 }
 
+/* Design system 06 · Components > "CALL ROW": leading icon, filename in
+   mono, agent/meta muted, status chip on the right, border+bg per state. */
 .call-list-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.65rem 0.6rem;
-  border-radius: var(--radius-sm);
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-panel-solid);
+  margin-bottom: 8px;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.call-list-item:last-child {
+  margin-bottom: 0;
 }
 
 .call-list-item:hover {
-  background: var(--bg-hover);
+  border-color: var(--border-strong);
 }
 
 .call-list-item.selected {
-  background: rgba(240, 146, 62, 0.2);
-  border: 1px solid var(--border-strong);
+  background: var(--bg-hover);
+  border-color: var(--accent-purple);
+}
+
+.call-list-icon {
+  color: var(--text-primary);
+  flex-shrink: 0;
 }
 
 .call-list-text {
@@ -691,7 +752,8 @@ button:not(:disabled):active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text-primary);
 }
 
@@ -699,39 +761,38 @@ button:not(:disabled):active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
 }
 
 .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  padding: 0.2rem 0.55rem;
+  padding: 3px 8px;
   border-radius: var(--radius-full);
   white-space: nowrap;
-  margin-left: 0.5rem;
-  border: 1px solid transparent;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .status-done {
-  background: rgba(74, 222, 128, 0.12);
+  background: rgba(79, 191, 139, 0.12);
   color: var(--accent-green);
-  border-color: rgba(74, 222, 128, 0.3);
 }
 
 .status-processing {
-  background: rgba(251, 191, 36, 0.12);
-  color: var(--accent-amber);
-  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(240, 145, 60, 0.12);
+  color: var(--accent-purple);
 }
 
 .status-failed {
-  background: rgba(251, 113, 133, 0.12);
+  background: rgba(224, 96, 94, 0.12);
   color: var(--accent-rose);
-  border-color: rgba(251, 113, 133, 0.3);
 }
 
 .call-detail-columns {
@@ -804,7 +865,7 @@ button:not(:disabled):active {
 }
 
 .jump-link:hover {
-  color: #ffd9ad;
+  color: var(--accent-purple-bright);
   text-decoration: underline;
 }
 
@@ -831,19 +892,19 @@ button:not(:disabled):active {
 }
 
 .addressed-yes {
-  background: rgba(74, 222, 128, 0.12);
+  background: rgba(79, 191, 139, 0.12);
   color: var(--accent-green);
 }
 
 .addressed-no {
-  background: rgba(148, 178, 175, 0.12);
+  background: rgba(167, 159, 149, 0.12);
   color: var(--text-secondary);
 }
 
 .tag-price {
-  background: rgba(251, 191, 36, 0.14);
+  background: rgba(240, 145, 60, 0.14);
   color: var(--accent-amber);
-  border-color: rgba(251, 191, 36, 0.3);
+  border-color: rgba(240, 145, 60, 0.3);
 }
 
 .tag-timing {
@@ -859,15 +920,15 @@ button:not(:disabled):active {
 }
 
 .tag-need {
-  background: rgba(74, 222, 128, 0.14);
+  background: rgba(79, 191, 139, 0.14);
   color: var(--accent-green);
-  border-color: rgba(74, 222, 128, 0.3);
+  border-color: rgba(79, 191, 139, 0.3);
 }
 
 .tag-trust {
-  background: rgba(251, 113, 133, 0.14);
+  background: rgba(224, 96, 94, 0.14);
   color: var(--accent-rose);
-  border-color: rgba(251, 113, 133, 0.3);
+  border-color: rgba(224, 96, 94, 0.3);
 }
 
 .tag-authority {
@@ -877,9 +938,9 @@ button:not(:disabled):active {
 }
 
 .tag-product {
-  background: rgba(251, 191, 36, 0.1);
+  background: rgba(240, 145, 60, 0.1);
   color: #fcd34d;
-  border-color: rgba(251, 191, 36, 0.24);
+  border-color: rgba(240, 145, 60, 0.24);
 }
 
 .tag-implementation {
@@ -889,7 +950,7 @@ button:not(:disabled):active {
 }
 
 .tag-contract {
-  background: rgba(148, 178, 175, 0.12);
+  background: rgba(167, 159, 149, 0.12);
   color: var(--text-secondary);
   border-color: var(--border-soft);
 }
@@ -928,15 +989,15 @@ button:not(:disabled):active {
 }
 
 .feedback-buttons .confirm.active {
-  background: rgba(74, 222, 128, 0.16);
+  background: rgba(79, 191, 139, 0.16);
   color: var(--accent-green);
-  border-color: rgba(74, 222, 128, 0.4);
+  border-color: rgba(79, 191, 139, 0.4);
 }
 
 .feedback-buttons .reject.active {
-  background: rgba(251, 113, 133, 0.16);
+  background: rgba(224, 96, 94, 0.16);
   color: var(--accent-rose);
-  border-color: rgba(251, 113, 133, 0.4);
+  border-color: rgba(224, 96, 94, 0.4);
 }
 
 /* ---------- Transcript ---------- */
@@ -957,7 +1018,7 @@ button:not(:disabled):active {
 }
 
 .transcript-segment.highlighted {
-  background: rgba(240, 146, 62, 0.14);
+  background: rgba(240, 145, 60, 0.14);
   border-left-color: var(--accent-purple-bright);
 }
 
@@ -967,7 +1028,7 @@ button:not(:disabled):active {
 }
 
 .highlighted .transcript-text {
-  color: #f6f1ff;
+  color: var(--text-primary);
 }
 
 .transcript-time {
@@ -1038,53 +1099,59 @@ button:not(:disabled):active {
   text-shadow: 0 2px 18px rgba(3, 7, 8, 0.65);
 }
 
-/* Calls tab, right-hand panel before a call is selected -- fills roughly
-   the visual weight CallDetail will occupy once there's something to show,
-   capped so it never forces a scroll on a short viewport. */
+/* Calls tab, right-hand panel before a call is selected. Design system
+   06 · Components > "EMPTY & LOADING": dashed border, radial accent glow,
+   4-bar waveform (the brand mark, animating -- per the system's own rule
+   this is exactly the state animating the bars is reserved for), title +
+   subtitle. Replaces the old full-bleed Strands ambient backdrop. */
 .call-empty-state {
-  position: relative;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  min-height: min(560px, calc(100vh - 210px));
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: radial-gradient(110% 90% at 50% 40%, rgba(240, 145, 60, 0.1), rgba(12, 11, 10, 0) 70%);
+  min-height: min(420px, calc(100vh - 210px));
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-}
-
-.call-empty-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.call-empty-backdrop::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(58% 52% at 50% 50%, var(--bg-base) 0%, transparent 74%);
+  padding: 18px;
 }
 
 .call-empty-content {
-  position: relative;
-  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
   padding: 0 32px;
 }
 
+.call-empty-waveform {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  margin-bottom: 4px;
+}
+
+.call-empty-waveform span {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  transform-origin: center;
+  animation: waveform-bar 1.15s ease-in-out infinite;
+}
+
 .call-empty-title {
-  font-size: 1.05rem;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0 0 8px;
-  text-shadow: 0 2px 20px rgba(3, 7, 8, 0.7);
+  margin: 0;
 }
 
 .call-empty-sub {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: var(--text-muted);
   margin: 0;
-  text-shadow: 0 2px 16px rgba(3, 7, 8, 0.6);
+  max-width: 260px;
 }
 
 .overall-score-value {
@@ -1133,37 +1200,37 @@ button:not(:disabled):active {
 }
 
 .sentiment-positive {
-  background: rgba(74, 222, 128, 0.14);
+  background: rgba(79, 191, 139, 0.14);
   color: var(--accent-green);
-  border-color: rgba(74, 222, 128, 0.3);
+  border-color: rgba(79, 191, 139, 0.3);
 }
 
 .sentiment-neutral {
-  background: rgba(148, 178, 175, 0.12);
+  background: rgba(167, 159, 149, 0.12);
   color: var(--text-secondary);
   border-color: var(--border-soft);
 }
 
 .sentiment-negative {
-  background: rgba(251, 113, 133, 0.14);
+  background: rgba(224, 96, 94, 0.14);
   color: var(--accent-rose);
-  border-color: rgba(251, 113, 133, 0.3);
+  border-color: rgba(224, 96, 94, 0.3);
 }
 
 .intent-high {
-  background: rgba(74, 222, 128, 0.14);
+  background: rgba(79, 191, 139, 0.14);
   color: var(--accent-green);
-  border-color: rgba(74, 222, 128, 0.3);
+  border-color: rgba(79, 191, 139, 0.3);
 }
 
 .intent-medium {
-  background: rgba(251, 191, 36, 0.14);
+  background: rgba(240, 145, 60, 0.14);
   color: var(--accent-amber);
-  border-color: rgba(251, 191, 36, 0.3);
+  border-color: rgba(240, 145, 60, 0.3);
 }
 
 .intent-low {
-  background: rgba(148, 178, 175, 0.12);
+  background: rgba(167, 159, 149, 0.12);
   color: var(--text-secondary);
   border-color: var(--border-soft);
 }
@@ -1177,26 +1244,26 @@ button:not(:disabled):active {
 
 .compliance-pass,
 .compliance-not_detected {
-  background: rgba(74, 222, 128, 0.14);
+  background: rgba(79, 191, 139, 0.14);
   color: var(--accent-green);
-  border-color: rgba(74, 222, 128, 0.3);
+  border-color: rgba(79, 191, 139, 0.3);
 }
 
 .compliance-fail,
 .compliance-detected {
-  background: rgba(251, 113, 133, 0.14);
+  background: rgba(224, 96, 94, 0.14);
   color: var(--accent-rose);
-  border-color: rgba(251, 113, 133, 0.3);
+  border-color: rgba(224, 96, 94, 0.3);
 }
 
 .compliance-warning {
-  background: rgba(251, 191, 36, 0.14);
+  background: rgba(240, 145, 60, 0.14);
   color: var(--accent-amber);
-  border-color: rgba(251, 191, 36, 0.3);
+  border-color: rgba(240, 145, 60, 0.3);
 }
 
 .compliance-not_applicable {
-  background: rgba(148, 178, 175, 0.1);
+  background: rgba(167, 159, 149, 0.1);
   color: var(--text-muted);
   border-color: var(--border-soft);
 }
@@ -1252,24 +1319,24 @@ button:not(:disabled):active {
 .outcome-field input:focus {
   outline: none;
   border-color: var(--accent-purple);
-  box-shadow: 0 0 0 3px rgba(240, 146, 62, 0.18);
+  box-shadow: 0 0 0 3px rgba(240, 145, 60, 0.18);
 }
 
 .outcome-panel button {
   padding: 0.55rem 1.05rem;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--accent-purple);
-  background: linear-gradient(135deg, var(--accent-purple-bright), var(--accent-violet));
-  color: #0d0620;
+  border: none;
+  background: var(--accent-purple);
+  color: #1a1208;
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
   font-family: var(--font-sans);
-  transition: box-shadow var(--transition-fast), opacity var(--transition-fast);
+  transition: background var(--transition-fast), opacity var(--transition-fast);
 }
 
 .outcome-panel button:hover:not(:disabled) {
-  box-shadow: var(--glow-purple-soft);
+  background: var(--accent-purple-bright);
 }
 
 .outcome-panel button:disabled {
@@ -1391,7 +1458,7 @@ button:not(:disabled):active {
 
 .quality-bar-track {
   flex: 1;
-  background: rgba(240, 146, 62, 0.14);
+  background: rgba(240, 145, 60, 0.14);
   border-radius: var(--radius-sm);
   height: 10px;
   overflow: hidden;
@@ -1400,7 +1467,7 @@ button:not(:disabled):active {
 .quality-bar-fill {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-violet), var(--accent-purple-bright));
+  background: linear-gradient(90deg, var(--accent-purple), var(--accent-purple-bright));
   border-radius: var(--radius-sm);
   transition: width var(--transition);
 }
@@ -1505,7 +1572,7 @@ button:not(:disabled):active {
 }
 
 .link-button:hover {
-  color: #ffd9ad;
+  color: var(--accent-purple-bright);
   text-decoration: underline;
 }
 
@@ -1530,7 +1597,7 @@ button:not(:disabled):active {
 }
 
 .lead-column {
-  background: rgba(240, 146, 62, 0.05);
+  background: rgba(240, 145, 60, 0.05);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   flex: 0 0 250px;
@@ -1540,7 +1607,7 @@ button:not(:disabled):active {
 }
 
 .lead-column-drag-over {
-  background: rgba(240, 146, 62, 0.16);
+  background: rgba(240, 145, 60, 0.16);
   box-shadow: inset 0 0 0 2px var(--accent-purple);
 }
 
@@ -1634,7 +1701,7 @@ button:not(:disabled):active {
 }
 
 .lead-card-move {
-  background: rgba(240, 146, 62, 0.08);
+  background: rgba(240, 145, 60, 0.08);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -1651,7 +1718,7 @@ button:not(:disabled):active {
 }
 
 .lead-card-move:not(:disabled):hover {
-  background: rgba(240, 146, 62, 0.18);
+  background: rgba(240, 145, 60, 0.18);
   color: var(--accent-purple-bright);
 }
 
@@ -1711,13 +1778,13 @@ button:not(:disabled):active {
 }
 
 .modal-actions button:last-child {
-  background: linear-gradient(135deg, var(--accent-purple-bright), var(--accent-violet));
-  border: 1px solid var(--accent-purple);
-  color: #0d0620;
+  background: var(--accent-purple);
+  border: none;
+  color: #1a1208;
 }
 
 .modal-actions button:last-child:hover {
-  box-shadow: var(--glow-purple-soft);
+  background: var(--accent-purple-bright);
 }
 
 .lead-detail-modal {

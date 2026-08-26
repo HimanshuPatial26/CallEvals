@@ -58,15 +58,15 @@ export default function UploadPanel({ onUploaded }) {
   return (
     <BorderGlow
       className="upload-panel"
-      backgroundColor="rgba(13, 24, 26, 0.9)"
-      borderRadius={16}
+      backgroundColor="#100e0c"
+      borderRadius={14}
       glowColor="28 86 59"
       glowRadius={22}
       glowIntensity={1.3}
       coneSpread={30}
       edgeSensitivity={35}
       fillOpacity={0.45}
-      colors={["#f0923e", "#2dd4bf", "#d9752c"]}
+      colors={["#f0913c", "#ffb169", "#a0713c"]}
       animated
     >
       <label className="upload-label" htmlFor="agent-select">

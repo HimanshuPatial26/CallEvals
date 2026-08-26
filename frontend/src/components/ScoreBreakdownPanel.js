@@ -29,7 +29,7 @@ export default function ScoreBreakdownPanel({ scoreBreakdown, compliance, overal
         {!reducedMotion && (
           <div className="score-hero-backdrop" aria-hidden="true">
             <Strands
-              colors={["#f0923e", "#2dd4bf", "#d9752c"]}
+              colors={["#f0913c", "#ffb169", "#a0713c"]}
               count={3}
               speed={0.35}
               amplitude={0.7}

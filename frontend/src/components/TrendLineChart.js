@@ -28,7 +28,7 @@ export default function TrendLineChart({ trend }) {
   const scorePts = seriesPoints(trend, "avg_score");
   const convPts = seriesPoints(trend, "conversion_rate_pct");
   const grid = [0, 1, 2, 3, 4].map((i) => (
-    <line key={i} x1={0} x2={W} y1={(H / 4) * i} y2={(H / 4) * i} stroke="rgba(240,146,62,.13)" strokeWidth="1" />
+    <line key={i} x1={0} x2={W} y1={(H / 4) * i} y2={(H / 4) * i} stroke="rgba(240,145,60,.13)" strokeWidth="1" />
   ));
   const scoreLine = polyPoints(scorePts);
   const fillPoly = scorePts.length > 0 ? `${scorePts[0][0]},${H} ${scoreLine} ${scorePts[scorePts.length - 1][0]},${H}` : "";
@@ -37,8 +37,8 @@ export default function TrendLineChart({ trend }) {
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: 210 }}>
       <defs>
         <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255,176,102,.42)" />
-          <stop offset="100%" stopColor="rgba(255,176,102,0)" />
+          <stop offset="0%" stopColor="rgba(255,177,105,.42)" />
+          <stop offset="100%" stopColor="rgba(255,177,105,0)" />
         </linearGradient>
       </defs>
       {grid}
@@ -46,9 +46,9 @@ export default function TrendLineChart({ trend }) {
       {convPts.length > 1 && (
         <polyline points={polyPoints(convPts)} fill="none" stroke="#7fa39d" strokeWidth="1.6" strokeDasharray="4 4" opacity="0.85" />
       )}
-      {scorePts.length > 1 && <polyline points={scoreLine} fill="none" stroke="#f0923e" strokeWidth="2.4" strokeLinejoin="round" />}
+      {scorePts.length > 1 && <polyline points={scoreLine} fill="none" stroke="#f0913c" strokeWidth="2.4" strokeLinejoin="round" />}
       {scorePts.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="2.6" fill="#0d1a1c" stroke="#f0923e" strokeWidth="1.4" />
+        <circle key={i} cx={x} cy={y} r="2.6" fill="#100e0c" stroke="#f0913c" strokeWidth="1.4" />
       ))}
     </svg>
   );

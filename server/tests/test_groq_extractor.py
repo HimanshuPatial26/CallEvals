@@ -80,6 +80,7 @@ def test_extract_sends_json_mode_and_configured_model(groq_key, monkeypatch):
     assert captured["json"]["model"] == "test-model"
     assert captured["json"]["response_format"] == {"type": "json_object"}
     assert captured["headers"]["Authorization"] == "Bearer test-key"
+    assert captured["json"]["max_completion_tokens"] > 0
 
 
 def test_extract_raises_on_malformed_json_response(groq_key, monkeypatch):
@@ -112,4 +113,31 @@ def test_extract_surfaces_the_actual_error_body_on_a_4xx(groq_key, monkeypatch):
     monkeypatch.setattr(httpx, "post", lambda *a, **k: FakeResponse())
 
     with pytest.raises(RuntimeError, match="does not exist"):
+        GroqExtractor().extract(TRANSCRIPT)
+
+
+def test_extract_adds_guidance_for_json_validate_failed(groq_key, monkeypatch):
+    """Reproduces the reported failure: Groq accepts the model and request, but
+    the model's own output fails Groq's server-side JSON validation. The raised
+    error should point at the likely cause (reasoning-model output under strict
+    JSON mode) rather than just echoing Groq's generic message back."""
+    from app.extraction.groq_extractor import GroqExtractor
+
+    class FakeResponse:
+        is_error = True
+        status_code = 400
+        text = (
+            '{"error": {"message": "Failed to validate JSON. Please adjust your prompt. '
+            'See \'failed_generation\' for more details.", "type": "invalid_request_error", '
+            '"code": "json_validate_failed", "failed_generation": ""}}'
+        )
+
+        def json(self):
+            import json as _json
+
+            return _json.loads(self.text)
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: FakeResponse())
+
+    with pytest.raises(RuntimeError, match="llama-3.3-70b-versatile"):
         GroqExtractor().extract(TRANSCRIPT)

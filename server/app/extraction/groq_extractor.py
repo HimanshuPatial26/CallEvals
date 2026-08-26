@@ -81,6 +81,27 @@ Transcript:
 """
 
 
+def _error_guidance(response: httpx.Response) -> str:
+    """Groq's error 'code' pins down what actually went wrong more precisely
+    than the status code alone — worth translating the ones with a known,
+    actionable cause into something a manager reading the failed-call error
+    doesn't have to go look up.
+    """
+    try:
+        code = response.json().get("error", {}).get("code")
+    except Exception:  # noqa: BLE001 — a malformed error body just means no extra guidance
+        return ""
+    if code == "json_validate_failed":
+        return (
+            " Groq accepted the request but the model's own output failed Groq's JSON "
+            "validation — this usually means the model returned empty or non-JSON content "
+            "under response_format=json_object (some models, especially reasoning-enabled "
+            "ones, don't handle strict JSON mode reliably). Try a well-established "
+            "non-reasoning model for GROQ_MODEL, e.g. llama-3.3-70b-versatile."
+        )
+    return ""
+
+
 class GroqExtractor(ExtractionProvider):
     def __init__(self) -> None:
         if not settings.groq_api_key:
@@ -102,6 +123,10 @@ class GroqExtractor(ExtractionProvider):
                 "messages": [{"role": "user", "content": prompt}],
                 "response_format": {"type": "json_object"},
                 "temperature": 0.2,
+                # Without an explicit cap, a long call (many next steps/objections)
+                # can get truncated mid-JSON, which is one way to land exactly on
+                # Groq's json_validate_failed error below.
+                "max_completion_tokens": 4096,
             },
             timeout=120.0,
         )
@@ -109,7 +134,7 @@ class GroqExtractor(ExtractionProvider):
             # httpx's default raise_for_status() message drops the response body,
             # which is where Groq (OpenAI-compatible) actually puts the reason —
             # e.g. an invalid/retired GROQ_MODEL, or a request field it rejects.
-            raise RuntimeError(f"Groq extraction request failed ({response.status_code}): {response.text}")
+            raise RuntimeError(f"Groq extraction request failed ({response.status_code}): {response.text}{_error_guidance(response)}")
         content = response.json()["choices"][0]["message"]["content"]
         wire = WireExtractionResult.model_validate_json(content)
 

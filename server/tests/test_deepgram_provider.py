@@ -54,6 +54,30 @@ def test_dual_channel_maps_channels_to_speakers(deepgram_key, monkeypatch, tmp_p
     assert segments[1].text == "too expensive"
 
 
+def test_dual_channel_respects_rep_channel_index_override(deepgram_key, monkeypatch, tmp_path):
+    """Reproduces the reported bug: a dialer that exports the rep on channel 1
+    instead of the assumed channel 0. REP_CHANNEL_INDEX=1 should flip the
+    channel-to-speaker mapping to match."""
+    from app.asr.deepgram_provider import DeepgramProvider
+
+    monkeypatch.setattr(settings, "rep_channel_index", 1)
+    _mock_response(
+        monkeypatch,
+        [
+            {"start": 0.0, "end": 1.0, "channel": 0, "transcript": "too expensive"},
+            {"start": 1.5, "end": 2.5, "channel": 1, "transcript": "hello there"},
+        ],
+    )
+
+    audio_path = tmp_path / "call.wav"
+    audio_path.write_bytes(b"fake-audio")
+
+    segments = DeepgramProvider().transcribe(audio_path, dual_channel=True)
+
+    assert segments[0].speaker == Speaker.CUSTOMER  # channel 0 is now the customer
+    assert segments[1].speaker == Speaker.REP  # channel 1 is now the rep
+
+
 def test_mono_without_diarization_info_labels_unknown(deepgram_key, monkeypatch, tmp_path):
     """No 'speaker' field on the utterance (Deepgram couldn't diarize this
     audio) still degrades to unknown rather than guessing a role."""

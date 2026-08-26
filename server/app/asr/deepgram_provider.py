@@ -43,10 +43,16 @@ from app.schemas import Speaker, TranscriptSegment
 
 _API_URL = "https://api.deepgram.com/v1/listen"
 
-# Dual-channel convention: channel 0 is the rep track, channel 1 is the
-# customer track. Same assumption app/audio/channel_split.py documents —
-# confirm it against each dialer's actual export during discovery.
-_CHANNEL_SPEAKER = {0: Speaker.REP, 1: Speaker.CUSTOMER}
+
+def _channel_speaker_map() -> dict[int, Speaker]:
+    """Which physical channel is the rep track — settings.rep_channel_index
+    (REP_CHANNEL_INDEX in .env), same dialer/recorder convention
+    app/audio/channel_split.py uses, kept in sync so both ASR paths agree.
+    Read live rather than cached at import time so a settings change takes
+    effect without re-importing this module.
+    """
+    rep_index = settings.rep_channel_index
+    return {rep_index: Speaker.REP, 1 - rep_index: Speaker.CUSTOMER}
 
 
 class DeepgramProvider(ASRProvider):
@@ -94,9 +100,10 @@ class DeepgramProvider(ASRProvider):
         return sorted(segments, key=lambda s: s.start)
 
     def _segments_from_channels(self, utterances: list[dict]) -> list[TranscriptSegment]:
+        channel_speaker = _channel_speaker_map()
         return [
             TranscriptSegment(
-                speaker=_CHANNEL_SPEAKER.get(u.get("channel", 0), Speaker.UNKNOWN),
+                speaker=channel_speaker.get(u.get("channel", 0), Speaker.UNKNOWN),
                 start=u["start"],
                 end=u["end"],
                 text=u["transcript"].strip(),

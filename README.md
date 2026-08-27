@@ -200,15 +200,15 @@ python -m pytest tests/
 These use fake ASR/extraction providers and synthetic in-memory WAV files, so
 they run without network access, an API key, or a downloaded Whisper model.
 
-## Deploy to Render
+## Deploy: backend on Render, frontend on Vercel
 
-Two separate services: the FastAPI backend as a **Web Service**, the React
-build as a **Static Site**. `render.yaml` in the repo root is a best-effort
-[Blueprint](https://render.com/docs/blueprint-spec) for both at once — try
-"New > Blueprint" in the Render dashboard pointed at this repo first. If that
-doesn't work cleanly, the steps below set up the same thing by hand.
+Deploy the backend first — the frontend needs its URL before its first build,
+and the backend needs the frontend's URL for CORS, so there's an unavoidable
+two-step handshake either way. Order: **Render backend → note its URL →
+Vercel frontend with that URL → back to Render to set CORS with the Vercel
+URL.**
 
-**Two things about this app specifically that don't show up until deploy:**
+**Two things about the backend specifically that don't show up until deploy:**
 
 - **Storage is ephemeral by default.** Calls, agents, leads, and settings are
   files on disk (`server/app/storage.py`, no database — see "Stack, and why"
@@ -225,7 +225,12 @@ doesn't work cleanly, the steps below set up the same thing by hand.
   avoids both — hosted, no local model, no ffmpeg — same tradeoff as the
   extraction-provider switch, just for transcription instead of extraction.
 
-### Backend (Web Service)
+### Backend on Render (Web Service)
+
+`render.yaml` in the repo root is a best-effort
+[Blueprint](https://render.com/docs/blueprint-spec) for this — try
+"New > Blueprint" in the Render dashboard pointed at this repo first. If that
+doesn't parse cleanly, the steps below set up the same service by hand.
 
 1. New Web Service → connect this repo.
 2. Root Directory: `server`. Environment: **Docker** (Render should detect
@@ -235,28 +240,37 @@ doesn't work cleanly, the steps below set up the same thing by hand.
 4. Environment variables — see `server/.env.example` for the full list and
    what each does. At minimum: `EXTRACTION_PROVIDER` + its API key
    (`GEMINI_API_KEY` or `GROQ_API_KEY`), `ASR_PROVIDER` + its config
-   (`WHISPER_*` or `DEEPGRAM_API_KEY`). `CORS_ALLOW_ORIGINS` needs the
-   frontend's URL as a JSON array string, e.g.
-   `["https://callevals-frontend.onrender.com"]` — the brackets and quotes
-   matter, this is parsed as JSON, not a comma list.
+   (`WHISPER_*` or `DEEPGRAM_API_KEY`). Leave `CORS_ALLOW_ORIGINS` unset for
+   now — the Vercel frontend doesn't exist yet.
 5. For persistent storage: add a Disk (e.g. 1 GB, mounted at `/var/data`,
    requires a paid instance type) and set `DATA_DIR=/var/data`.
 6. Deploy, then note the assigned URL (`https://<name>.onrender.com`) — the
    frontend needs it next.
 
-### Frontend (Static Site)
+### Frontend on Vercel
 
-1. New Static Site → connect this repo.
-2. Root Directory: `frontend`. Build Command: `npm install && npm run build`.
-   Publish Directory: `build`.
-3. Environment variable `REACT_APP_API_BASE` = the backend URL from above.
-   Create React App bakes `REACT_APP_*` vars in **at build time**, not
-   runtime — set this before the first build, or trigger a manual redeploy
-   after adding/changing it; editing it later doesn't take effect until the
-   next build.
-4. Deploy, then go back and update the backend's `CORS_ALLOW_ORIGINS` to this
-   URL (step 4 above needed it upfront as a guess — fix it once the real URL
-   is known, then let the backend redeploy).
+CRA is one of Vercel's zero-config framework presets — no `vercel.json`
+needed, just point it at the `frontend` subdirectory.
+
+1. New Project on Vercel → import this repo.
+2. Root Directory: `frontend`. Vercel should auto-detect "Create React App"
+   and fill in the build command (`npm run build` / `react-scripts build`)
+   and output directory (`build`) itself — confirm rather than override
+   unless something looks off.
+3. Environment Variable `REACT_APP_API_BASE` = the Render backend URL from
+   above. Create React App bakes `REACT_APP_*` vars in **at build time**, not
+   runtime — set this before the first deploy, or trigger a redeploy after
+   adding/changing it (Vercel's dashboard has a "Redeploy" action for
+   exactly this; editing the env var alone doesn't touch an already-built
+   deployment).
+4. Deploy. Vercel's production URL is `https://<project-name>.vercel.app`
+   unless you attach a custom domain — every PR/branch also gets its own
+   preview URL, which won't be in the backend's CORS list unless you add it
+   too (fine to ignore for now, or add multiple origins to the JSON array).
+5. Back on Render: set the backend's `CORS_ALLOW_ORIGINS` to the Vercel URL
+   as a JSON array string, e.g. `["https://your-project.vercel.app"]` — the
+   brackets and quotes matter, this is parsed as JSON, not a comma list.
+   Saving it triggers a backend redeploy automatically.
 
 ## Known limitations / not yet verified
 

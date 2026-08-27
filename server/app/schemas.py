@@ -157,6 +157,12 @@ class CallRecord(BaseModel):
     agent_id: str | None = None
     lead_id: str | None = None
     duration: float | None = Field(default=None, description="Seconds, derived from transcript once ASR completes")
+    speaker_source: str | None = Field(
+        default=None,
+        description="How rep/customer were identified: channel_split (hard separation, "
+        "most trustworthy) | diarization (voice-clustering heuristic, can be wrong) | "
+        "unknown (no separation available) — see app/asr/base.py",
+    )
     transcript: list[TranscriptSegment] = Field(default_factory=list)
     extraction: ExtractionResult | None = None
     shape: ConversationShape | None = None

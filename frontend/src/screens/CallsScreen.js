@@ -129,16 +129,17 @@ export default function CallsScreen({
     ...nextSteps.filter((s) => s.source_timestamp != null).map((s) => ({ ts: s.source_timestamp, color: "var(--ce-success)" })),
   ];
   const autoflagThreshold = settings?.autoflag_threshold ?? 88;
-  // Derived from the actual segments rather than the dual_channel flag alone —
-  // a mono call can still have real rep/customer labels via Deepgram
-  // diarization, and that's a heuristic guess, not the same certainty as
-  // hard channel separation, so it's worth saying which one this call got.
-  const hasIdentifiedSpeakers = call.transcript.some((s) => s.speaker !== "unknown");
-  const speakerLabel = !hasIdentifiedSpeakers
-    ? "SPEAKERS UNKNOWN"
-    : call.dual_channel
-      ? "SPEAKER-SEPARATED"
-      : "DIARIZED · HEURISTIC";
+  // Ground truth from the backend (app/asr/base.py's speaker_source), not a
+  // frontend guess — channel_split (hard separation) and diarization (a
+  // voice-clustering heuristic that can be wrong) both happen on dual-channel
+  // calls when the container didn't actually separate, so dual_channel alone
+  // can't tell you which one a call actually got.
+  const SPEAKER_SOURCE_LABEL = {
+    channel_split: "SPEAKER-SEPARATED",
+    diarization: "DIARIZED · HEURISTIC",
+    unknown: "SPEAKERS UNKNOWN",
+  };
+  const speakerLabel = SPEAKER_SOURCE_LABEL[call.speaker_source] || "SPEAKERS UNKNOWN";
 
   return (
     <div className="ce-content">

@@ -15,10 +15,22 @@ from app.schemas import TranscriptSegment
 
 class ASRProvider(ABC):
     @abstractmethod
-    def transcribe(self, audio_path: Path, dual_channel: bool) -> list[TranscriptSegment]:
-        """Return speaker-labeled, timestamped transcript segments in start-time order.
+    def transcribe(self, audio_path: Path, dual_channel: bool) -> tuple[list[TranscriptSegment], str]:
+        """Return (speaker-labeled timestamped transcript segments in start-time
+        order, how speakers were actually identified).
 
-        When dual_channel is False, real diarization is out of scope for Phase 0 —
-        implementations should label every segment Speaker.UNKNOWN rather than guess.
+        The second element is one of "channel_split" (hard separation from
+        distinct audio channels — as certain as this pipeline gets),
+        "diarization" (voice-clustering heuristic — first speaker to talk is
+        assumed to be the rep; can be wrong, see app/asr/deepgram_provider.py),
+        or "unknown" (every segment is Speaker.UNKNOWN — no real diarization
+        available for this path). This is real, reportable ground truth for
+        why a transcript's speaker labels deserve more or less trust, not
+        something to reconstruct after the fact from dual_channel alone — a
+        dual-channel container that didn't actually separate still ends up on
+        the "diarization" heuristic, same as a mono call.
+
+        When neither channel separation nor diarization is available, label
+        every segment Speaker.UNKNOWN rather than guess.
         """
         raise NotImplementedError

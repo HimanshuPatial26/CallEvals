@@ -14,8 +14,8 @@ from app.schemas import (
 
 
 class FakeASR(ASRProvider):
-    def transcribe(self, audio_path: Path, dual_channel: bool) -> list[TranscriptSegment]:
-        return [TranscriptSegment(speaker=Speaker.REP, start=0.0, end=1.0, text="hello")]
+    def transcribe(self, audio_path: Path, dual_channel: bool) -> tuple[list[TranscriptSegment], str]:
+        return [TranscriptSegment(speaker=Speaker.REP, start=0.0, end=1.0, text="hello")], "channel_split"
 
 
 class FakeExtractor(ExtractionProvider):
@@ -28,7 +28,7 @@ class FakeExtractor(ExtractionProvider):
 
 
 class FailingASR(ASRProvider):
-    def transcribe(self, audio_path: Path, dual_channel: bool) -> list[TranscriptSegment]:
+    def transcribe(self, audio_path: Path, dual_channel: bool) -> tuple[list[TranscriptSegment], str]:
         raise RuntimeError("boom")
 
 
@@ -47,6 +47,7 @@ def test_process_call_succeeds():
 
     assert record.status == "done"
     assert record.transcript[0].text == "hello"
+    assert record.speaker_source == "channel_split"
     assert record.extraction.summary == "test summary"
     assert record.extraction.next_steps[0].owner == Speaker.REP
 

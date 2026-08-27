@@ -46,8 +46,9 @@ def test_dual_channel_maps_channels_to_speakers(deepgram_key, monkeypatch, tmp_p
     audio_path = tmp_path / "call.wav"
     audio_path.write_bytes(b"fake-audio")
 
-    segments = DeepgramProvider().transcribe(audio_path, dual_channel=True)
+    segments, source = DeepgramProvider().transcribe(audio_path, dual_channel=True)
 
+    assert source == "channel_split"
     assert segments[0].speaker == Speaker.REP
     assert segments[0].text == "hello there"
     assert segments[1].speaker == Speaker.CUSTOMER
@@ -72,7 +73,7 @@ def test_dual_channel_respects_rep_channel_index_override(deepgram_key, monkeypa
     audio_path = tmp_path / "call.wav"
     audio_path.write_bytes(b"fake-audio")
 
-    segments = DeepgramProvider().transcribe(audio_path, dual_channel=True)
+    segments, _source = DeepgramProvider().transcribe(audio_path, dual_channel=True)
 
     assert segments[0].speaker == Speaker.CUSTOMER  # channel 0 is now the customer
     assert segments[1].speaker == Speaker.REP  # channel 1 is now the rep
@@ -88,8 +89,9 @@ def test_mono_without_diarization_info_labels_unknown(deepgram_key, monkeypatch,
     audio_path = tmp_path / "call.wav"
     audio_path.write_bytes(b"fake-audio")
 
-    segments = DeepgramProvider().transcribe(audio_path, dual_channel=False)
+    segments, source = DeepgramProvider().transcribe(audio_path, dual_channel=False)
 
+    assert source == "diarization"
     assert segments[0].speaker == Speaker.UNKNOWN
 
 
@@ -108,11 +110,36 @@ def test_mono_uses_diarization_to_identify_rep_and_customer(deepgram_key, monkey
     audio_path = tmp_path / "call.wav"
     audio_path.write_bytes(b"fake-audio")
 
-    segments = DeepgramProvider().transcribe(audio_path, dual_channel=False)
+    segments, _source = DeepgramProvider().transcribe(audio_path, dual_channel=False)
 
     assert segments[0].speaker == Speaker.REP  # speaker 0 talked first
     assert segments[1].speaker == Speaker.CUSTOMER
     assert segments[2].speaker == Speaker.REP
+
+
+def test_diarization_respects_first_speaker_is_not_rep_override(deepgram_key, monkeypatch, tmp_path):
+    """Reproduces the follow-up report: flipping REP_CHANNEL_INDEX didn't help
+    because the call actually went through diarization (not channel_split),
+    which has its own, separate first-speaker assumption. Inbound calls where
+    the customer speaks first need FIRST_DIARIZED_SPEAKER_IS_REP=false."""
+    from app.asr.deepgram_provider import DeepgramProvider
+
+    monkeypatch.setattr(settings, "first_diarized_speaker_is_rep", False)
+    _mock_response(
+        monkeypatch,
+        [
+            {"start": 0.0, "end": 1.0, "transcript": "hi, I have a question", "speaker": 0},
+            {"start": 1.5, "end": 2.5, "transcript": "sure, go ahead", "speaker": 1},
+        ],
+    )
+
+    audio_path = tmp_path / "call.wav"
+    audio_path.write_bytes(b"fake-audio")
+
+    segments, _source = DeepgramProvider().transcribe(audio_path, dual_channel=False)
+
+    assert segments[0].speaker == Speaker.CUSTOMER  # speaker 0 talked first, now = customer
+    assert segments[1].speaker == Speaker.REP
 
 
 def test_mono_request_asks_for_diarization_not_multichannel(deepgram_key, monkeypatch, tmp_path):
@@ -150,7 +177,7 @@ def test_empty_transcript_utterances_are_skipped(deepgram_key, monkeypatch, tmp_
     audio_path = tmp_path / "call.wav"
     audio_path.write_bytes(b"fake-audio")
 
-    segments = DeepgramProvider().transcribe(audio_path, dual_channel=False)
+    segments, _source = DeepgramProvider().transcribe(audio_path, dual_channel=False)
 
     assert segments == []
 
@@ -174,8 +201,9 @@ def test_dual_channel_falls_back_to_diarization_when_channels_not_separated(deep
     audio_path = tmp_path / "call.wav"
     audio_path.write_bytes(b"fake-audio")
 
-    segments = DeepgramProvider().transcribe(audio_path, dual_channel=True)
+    segments, source = DeepgramProvider().transcribe(audio_path, dual_channel=True)
 
+    assert source == "diarization"  # dual_channel=True but this is the didn't-actually-separate case
     assert segments[0].speaker == Speaker.REP  # speaker 1 talked first
     assert segments[1].speaker == Speaker.CUSTOMER  # speaker 0 is anyone-but-first
     assert segments[2].speaker == Speaker.REP  # speaker 1 again
@@ -196,7 +224,7 @@ def test_diarization_fallback_collapses_third_speaker_into_customer(deepgram_key
     audio_path = tmp_path / "call.wav"
     audio_path.write_bytes(b"fake-audio")
 
-    segments = DeepgramProvider().transcribe(audio_path, dual_channel=True)
+    segments, _source = DeepgramProvider().transcribe(audio_path, dual_channel=True)
 
     assert segments[0].speaker == Speaker.REP
     assert segments[1].speaker == Speaker.CUSTOMER
@@ -220,7 +248,8 @@ def test_dual_channel_with_real_separation_ignores_diarization_fallback(deepgram
     audio_path = tmp_path / "call.wav"
     audio_path.write_bytes(b"fake-audio")
 
-    segments = DeepgramProvider().transcribe(audio_path, dual_channel=True)
+    segments, source = DeepgramProvider().transcribe(audio_path, dual_channel=True)
 
+    assert source == "channel_split"
     assert segments[0].speaker == Speaker.REP
     assert segments[1].speaker == Speaker.CUSTOMER

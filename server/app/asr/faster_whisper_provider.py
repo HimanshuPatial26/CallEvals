@@ -45,16 +45,18 @@ def _transcribe_track(audio: np.ndarray, sample_rate: int, speaker: Speaker) -> 
 
 
 class FasterWhisperProvider(ASRProvider):
-    def transcribe(self, audio_path: Path, dual_channel: bool) -> list[TranscriptSegment]:
+    def transcribe(self, audio_path: Path, dual_channel: bool) -> tuple[list[TranscriptSegment], str]:
         if dual_channel:
             rep_audio, customer_audio, sample_rate = split_channels(audio_path)
             rep_segments = _transcribe_track(rep_audio, sample_rate, Speaker.REP)
             customer_segments = _transcribe_track(customer_audio, sample_rate, Speaker.CUSTOMER)
             merged = rep_segments + customer_segments
+            source = "channel_split"
         else:
             audio, sample_rate = sf.read(str(audio_path), always_2d=False, dtype="float32")
             if audio.ndim > 1:
                 audio = audio.mean(axis=1)
             merged = _transcribe_track(audio, sample_rate, Speaker.UNKNOWN)
+            source = "unknown"
 
-        return sorted(merged, key=lambda s: s.start)
+        return sorted(merged, key=lambda s: s.start), source

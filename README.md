@@ -1,4 +1,4 @@
-# CallEvals — Sahil, Phase 0
+# CallEvals —  Phase 0
 
 Sales call intelligence for GCC mid-market real estate brokerages: transcript in,
 summary + next steps + objection tags out. Full product spec: [docs/PRD.md](docs/PRD.md).

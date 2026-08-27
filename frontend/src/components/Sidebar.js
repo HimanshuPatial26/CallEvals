@@ -13,7 +13,7 @@ export default function Sidebar({ screen, onNavigate, counts, repPrivateMode, pi
   return (
     <aside className="ce-sidebar">
       <div className="ce-sidebar-logo">
-        <LogoMark size={24} />
+        <LogoMark size={24} animated />
         <span className="ce-sidebar-logo-text">
           <span className="ce-sidebar-logo-name">CallEvals</span>
           <span className="ce-sidebar-logo-tag">CALL INTELLIGENCE</span>

@@ -63,7 +63,7 @@ class DeepgramProvider(ASRProvider):
                 "key at https://console.deepgram.com and put it in server/.env."
             )
 
-    def transcribe(self, audio_path: Path, dual_channel: bool) -> list[TranscriptSegment]:
+    def transcribe(self, audio_path: Path, dual_channel: bool) -> tuple[list[TranscriptSegment], str]:
         params = {
             "model": settings.deepgram_model,
             "smart_format": "true",
@@ -93,11 +93,11 @@ class DeepgramProvider(ASRProvider):
         utterances = [u for u in response.json()["results"]["utterances"] if u["transcript"].strip()]
 
         if dual_channel and len({u.get("channel", 0) for u in utterances}) >= 2:
-            segments = self._segments_from_channels(utterances)
+            segments, source = self._segments_from_channels(utterances), "channel_split"
         else:
-            segments = self._segments_from_diarization(utterances)
+            segments, source = self._segments_from_diarization(utterances), "diarization"
 
-        return sorted(segments, key=lambda s: s.start)
+        return sorted(segments, key=lambda s: s.start), source
 
     def _segments_from_channels(self, utterances: list[dict]) -> list[TranscriptSegment]:
         channel_speaker = _channel_speaker_map()
@@ -115,16 +115,22 @@ class DeepgramProvider(ASRProvider):
         """Used for genuinely mono calls, and as a fallback when a 2-channel
         file didn't actually separate the speakers.
 
-        Heuristic: the first distinct diarized speaker to talk is labeled the
-        rep, every other speaker ID is labeled the customer (multi-party calls
-        beyond two voices collapse into "customer" — Phase 0 only models two
-        roles). This is right when the rep opens the call, which is the norm
-        for outbound sales calls, and wrong when the customer calls in first
-        or the call opens with hold music / an IVR segment that gets diarized
-        as its own "speaker." Deepgram's diarization confidence is also
-        noticeably lower than channel-based separation — expect occasional
-        misattributed short turns ("okay", "yeah").
+        Heuristic: the first distinct diarized speaker to talk is assumed to be
+        one specific role — settings.first_diarized_speaker_is_rep
+        (FIRST_DIARIZED_SPEAKER_IS_REP in .env) says which, default rep — and
+        every other speaker ID gets the other role (multi-party calls beyond
+        two voices collapse into whichever role isn't "first speaker" — Phase 0
+        only models two roles). The default is right when the rep opens the
+        call, which is the norm for outbound sales calls, and wrong when the
+        customer calls in first or the call opens with hold music / an IVR
+        segment that gets diarized as its own "speaker" — flip the setting if
+        that's consistently backwards for your calls. Deepgram's diarization
+        confidence is also noticeably lower than channel-based separation —
+        expect occasional misattributed short turns ("okay", "yeah") even with
+        the right setting.
         """
+        first_role = Speaker.REP if settings.first_diarized_speaker_is_rep else Speaker.CUSTOMER
+        other_role = Speaker.CUSTOMER if first_role == Speaker.REP else Speaker.REP
         first_speaker_id: int | None = None
         segments = []
         for u in utterances:
@@ -134,7 +140,7 @@ class DeepgramProvider(ASRProvider):
             else:
                 if first_speaker_id is None:
                     first_speaker_id = speaker_id
-                speaker = Speaker.REP if speaker_id == first_speaker_id else Speaker.CUSTOMER
+                speaker = first_role if speaker_id == first_speaker_id else other_role
             segments.append(
                 TranscriptSegment(speaker=speaker, start=u["start"], end=u["end"], text=u["transcript"].strip())
             )

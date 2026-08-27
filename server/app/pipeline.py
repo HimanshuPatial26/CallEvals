@@ -16,7 +16,7 @@ from app.schemas import CallRecord
 
 def process_call(record: CallRecord, audio_path: Path, asr: ASRProvider, extractor: ExtractionProvider) -> CallRecord:
     try:
-        record.transcript = asr.transcribe(audio_path, dual_channel=record.dual_channel)
+        record.transcript, record.speaker_source = asr.transcribe(audio_path, dual_channel=record.dual_channel)
         record.extraction = extractor.extract(record.transcript)
         record.duration = compute_duration(record.transcript)
         record.shape = compute_conversation_shape(record.transcript)

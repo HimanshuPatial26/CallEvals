@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     # app/asr/deepgram_provider.py (Deepgram path) identically.
     rep_channel_index: int = 0  # 0 | 1
 
+    # Diarization (used when channel separation isn't available — a mono call, or
+    # a dual-channel container that didn't actually separate) has no channel to
+    # key off of, so it falls back to a different, separate assumption: which
+    # party's voice is clustered first. This is independent of rep_channel_index
+    # and only applies on that fallback path — see app/asr/deepgram_provider.py.
+    first_diarized_speaker_is_rep: bool = True
+
     whisper_model_size: str = "base"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"

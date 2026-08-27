@@ -1,0 +1,60 @@
+# Render Blueprint for the backend — convenience for "New > Blueprint" in the
+# Render dashboard, pointed at this repo. I couldn't verify this against a live
+# Render deploy from this sandbox (network-restricted, no Render account
+# access), so treat this as a best-effort starting point, not a guarantee it
+# parses exactly as Render's current schema expects. If the Blueprint import
+# fails or looks different from what you see in the dashboard, README.md's
+# "Deploy to Render" section walks through the same setup by hand — that path
+# doesn't depend on this file at all.
+#
+# The frontend deploys separately on Vercel (see README.md's "Deploy to
+# Vercel" section) — not covered here.
+#
+# Known follow-up after the first deploy: CORS_ALLOW_ORIGINS below is left
+# unset (sync: false) because the frontend's Vercel URL isn't known until that
+# project exists. Set it once you have that URL, as a JSON array string, e.g.
+# ["https://your-project.vercel.app"] — then the backend redeploys automatically.
+
+services:
+  - type: web
+    name: callevals-backend
+    env: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: EXTRACTION_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: ASR_PROVIDER
+        value: faster_whisper
+      - key: WHISPER_MODEL_SIZE
+        value: base
+      - key: WHISPER_DEVICE
+        value: cpu
+      - key: WHISPER_COMPUTE_TYPE
+        value: int8
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: DEEPGRAM_MODEL
+        value: nova-2
+      - key: REP_CHANNEL_INDEX
+        value: "0"
+      - key: FIRST_DIARIZED_SPEAKER_IS_REP
+        value: "true"
+      - key: DATA_DIR
+        value: /var/data
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+    disk:
+      name: callevals-data
+      mountPath: /var/data
+      sizeGB: 1

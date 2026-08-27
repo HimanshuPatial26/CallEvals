@@ -11,6 +11,12 @@ def test_health():
     assert response.json() == {"status": "ok"}
 
 
+def test_root_returns_a_friendly_pointer_instead_of_404():
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.json()["health"] == "/api/health"
+
+
 def test_get_missing_call_returns_404():
     response = client.get("/api/calls/does-not-exist")
     assert response.status_code == 404

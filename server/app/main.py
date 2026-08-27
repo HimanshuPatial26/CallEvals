@@ -24,3 +24,12 @@ app.include_router(settings_router.router)
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/")
+async def root() -> dict[str, str]:
+    """No frontend served from here — this is an API-only backend, the React
+    app is a separate deployment. Exists so hitting the bare domain in a
+    browser (e.g. right after a deploy, to sanity-check it's up) shows
+    something useful instead of a bare 404."""
+    return {"service": "CallEvals API", "health": "/api/health", "docs": "/docs"}

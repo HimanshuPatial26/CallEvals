@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import TopHeader from "./components/TopHeader";
 import UploadModal from "./components/UploadModal";
 import LeadModal from "./components/LeadModal";
+import CallPreviewModal from "./components/CallPreviewModal";
 import CallsScreen from "./screens/CallsScreen";
 import CallHistoryScreen from "./screens/CallHistoryScreen";
 import AgentsScreen from "./screens/AgentsScreen";
@@ -30,6 +31,7 @@ function App() {
   const [selectedCallId, setSelectedCallId] = useState(null);
   const [selectedAgentId, setSelectedAgentId] = useState(null);
   const [openLeadId, setOpenLeadId] = useState(null);
+  const [previewCallId, setPreviewCallId] = useState(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [error, setError] = useState(null);
 
@@ -140,10 +142,15 @@ function App() {
       </div>
 
       {openLeadId && (
-        <LeadModal
-          leadId={openLeadId}
-          onClose={() => setOpenLeadId(null)}
-          onOpenCall={(callId) => {
+        <LeadModal leadId={openLeadId} onClose={() => setOpenLeadId(null)} onOpenCall={setPreviewCallId} />
+      )}
+
+      {previewCallId && (
+        <CallPreviewModal
+          callId={previewCallId}
+          onClose={() => setPreviewCallId(null)}
+          onOpenFull={(callId) => {
+            setPreviewCallId(null);
             setOpenLeadId(null);
             setSelectedCallId(callId);
             setScreen("calls");

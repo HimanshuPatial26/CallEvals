@@ -200,6 +200,64 @@ python -m pytest tests/
 These use fake ASR/extraction providers and synthetic in-memory WAV files, so
 they run without network access, an API key, or a downloaded Whisper model.
 
+## Deploy to Render
+
+Two separate services: the FastAPI backend as a **Web Service**, the React
+build as a **Static Site**. `render.yaml` in the repo root is a best-effort
+[Blueprint](https://render.com/docs/blueprint-spec) for both at once — try
+"New > Blueprint" in the Render dashboard pointed at this repo first. If that
+doesn't work cleanly, the steps below set up the same thing by hand.
+
+**Two things about this app specifically that don't show up until deploy:**
+
+- **Storage is ephemeral by default.** Calls, agents, leads, and settings are
+  files on disk (`server/app/storage.py`, no database — see "Stack, and why"
+  above), and Render wipes the default disk on every restart/redeploy. Without
+  a persistent disk (Render's paid plans only — not available on Free), every
+  redeploy silently erases all data. `render.yaml` provisions a 1 GB disk and
+  sets `DATA_DIR` to its mount path; on Free, drop the `disk:` block and
+  `DATA_DIR` override and accept that data doesn't survive a redeploy.
+- **The default ASR path needs ffmpeg + a model download.** faster-whisper
+  (`ASR_PROVIDER=faster_whisper`, the default) decodes audio through `ffmpeg`
+  and pulls a Whisper model from Hugging Face on first use — fine in Docker
+  (this repo's `server/Dockerfile` installs ffmpeg explicitly) but adds cold-
+  start latency and memory pressure on a small instance. `ASR_PROVIDER=deepgram`
+  avoids both — hosted, no local model, no ffmpeg — same tradeoff as the
+  extraction-provider switch, just for transcription instead of extraction.
+
+### Backend (Web Service)
+
+1. New Web Service → connect this repo.
+2. Root Directory: `server`. Environment: **Docker** (Render should detect
+   `server/Dockerfile` automatically; if it offers a native Python runtime
+   instead, pick Docker explicitly — see the ffmpeg note above).
+3. Health Check Path: `/api/health`.
+4. Environment variables — see `server/.env.example` for the full list and
+   what each does. At minimum: `EXTRACTION_PROVIDER` + its API key
+   (`GEMINI_API_KEY` or `GROQ_API_KEY`), `ASR_PROVIDER` + its config
+   (`WHISPER_*` or `DEEPGRAM_API_KEY`). `CORS_ALLOW_ORIGINS` needs the
+   frontend's URL as a JSON array string, e.g.
+   `["https://callevals-frontend.onrender.com"]` — the brackets and quotes
+   matter, this is parsed as JSON, not a comma list.
+5. For persistent storage: add a Disk (e.g. 1 GB, mounted at `/var/data`,
+   requires a paid instance type) and set `DATA_DIR=/var/data`.
+6. Deploy, then note the assigned URL (`https://<name>.onrender.com`) — the
+   frontend needs it next.
+
+### Frontend (Static Site)
+
+1. New Static Site → connect this repo.
+2. Root Directory: `frontend`. Build Command: `npm install && npm run build`.
+   Publish Directory: `build`.
+3. Environment variable `REACT_APP_API_BASE` = the backend URL from above.
+   Create React App bakes `REACT_APP_*` vars in **at build time**, not
+   runtime — set this before the first build, or trigger a manual redeploy
+   after adding/changing it; editing it later doesn't take effect until the
+   next build.
+4. Deploy, then go back and update the backend's `CORS_ALLOW_ORIGINS` to this
+   URL (step 4 above needed it upfront as a guess — fix it once the real URL
+   is known, then let the backend redeploy).
+
 ## Known limitations / not yet verified
 
 - **Neither ASR path has completed a real transcription through this app.** The

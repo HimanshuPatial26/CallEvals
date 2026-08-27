@@ -1,0 +1,68 @@
+# Render Blueprint — convenience for "New > Blueprint" in the Render dashboard,
+# pointed at this repo. I couldn't verify this against a live Render deploy from
+# this sandbox (network-restricted, no Render account access), so treat this as
+# a best-effort starting point, not a guarantee it parses exactly as Render's
+# current schema expects. If the Blueprint import fails or looks different from
+# what you see in the dashboard, README.md's "Deploy to Render" section walks
+# through the same setup by hand — that path doesn't depend on this file at all.
+#
+# Known follow-ups after the first deploy (can't be filled in ahead of time):
+# - REACT_APP_API_BASE below assumes the backend gets the URL
+#   https://callevals-backend.onrender.com — Render appends a random suffix
+#   instead if that name is already taken by someone else. Check the backend's
+#   actual URL and update this value (then redeploy the frontend) if so.
+# - CORS_ALLOW_ORIGINS below assumes the frontend gets
+#   https://callevals-frontend.onrender.com for the same reason.
+
+services:
+  - type: web
+    name: callevals-backend
+    env: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: EXTRACTION_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: ASR_PROVIDER
+        value: faster_whisper
+      - key: WHISPER_MODEL_SIZE
+        value: base
+      - key: WHISPER_DEVICE
+        value: cpu
+      - key: WHISPER_COMPUTE_TYPE
+        value: int8
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: DEEPGRAM_MODEL
+        value: nova-2
+      - key: REP_CHANNEL_INDEX
+        value: "0"
+      - key: FIRST_DIARIZED_SPEAKER_IS_REP
+        value: "true"
+      - key: DATA_DIR
+        value: /var/data
+      - key: CORS_ALLOW_ORIGINS
+        value: '["https://callevals-frontend.onrender.com"]'
+    disk:
+      name: callevals-data
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: web
+    name: callevals-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/build
+    envVars:
+      - key: REACT_APP_API_BASE
+        value: https://callevals-backend.onrender.com
